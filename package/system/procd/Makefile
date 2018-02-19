@@ -11,10 +11,8 @@ PKG_NAME:=procd
 PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=http://github.com/jonpry/procd.git
-PKG_SOURCE_DATE:=2018-01-23
-PKG_SOURCE_VERSION:=653629f19e591a0827ab39de07b4526bb119a57a
-PKG_MIRROR_HASH:=2e0c3ae45521eea456a8411c8d9ef19ed9a5ed6c0ab38b9496555625fb4ba6a298734987
+PKG_SOURCE_URL=https://github.com/jonpry/procd.git
+PKG_SOURCE_VERSION:=master
 CMAKE_INSTALL:=1
 
 PKG_LICENSE:=GPL-2.0
@@ -93,7 +91,7 @@ CMAKE_OPTIONS += -DSECCOMP_SUPPORT=$(SECCOMP) -DUTRACE_SUPPORT=$(SECCOMP)
 define Package/procd/install
 	$(INSTALL_DIR) $(1)/sbin $(1)/etc $(1)/lib/functions
 
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/{init,procd,askfirst,udevtrigger,upgraded} $(1)/sbin/
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/{init,procd,askfirst,udevtrigger} $(1)/sbin/
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/libsetlbf.so $(1)/lib
 	$(INSTALL_BIN) ./files/reload_config $(1)/sbin/
 	$(INSTALL_DATA) ./files/hotplug*.json $(1)/etc/
