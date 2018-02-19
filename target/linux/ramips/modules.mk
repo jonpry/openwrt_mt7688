@@ -31,11 +31,9 @@ define KernelPackage/sdhci-mt7620
   TITLE:=MT7620 SDCI
   DEPENDS:=@(TARGET_ramips_mt7620||TARGET_ramips_mt76x8||TARGET_ramips_mt7621) +kmod-mmc
   KCONFIG:= \
-	CONFIG_MTK_MMC \
-	CONFIG_MTK_AEE_KDUMP=n \
-	CONFIG_MTK_MMC_CD_POLL=n
+	CONFIG_MMC_MTK 
   FILES:= \
-	$(LINUX_DIR)/drivers/mmc/host/mtk-mmc/mtk_sd.ko
+	$(LINUX_DIR)/drivers/mmc/host/mtk-sd.ko
   AUTOLOAD:=$(call AutoProbe,mtk_sd,1)
 endef
 
