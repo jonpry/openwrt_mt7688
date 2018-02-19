@@ -1,0 +1,247 @@
+diff --git a/drivers/i2c/busses/i2c-mt7621.c b/drivers/i2c/busses/i2c-mt7621.c
+index e2849e84..7f0e1d94 100644
+--- a/drivers/i2c/busses/i2c-mt7621.c
++++ b/drivers/i2c/busses/i2c-mt7621.c
+@@ -162,28 +162,17 @@ static int poll_up_timeout(void __iomem *addr, u32 mask)
+ 	return -ETIMEDOUT;
+ }
+ 
+-static int mtk_i2c_wait_rx_done(struct mtk_i2c *i2c)
++static int mtk_i2c_wait_done(struct mtk_i2c *i2c)
+ {
+ 	int ret;
+ 
+-	ret = poll_up_timeout(i2c->base + REG_SM0ST, I2C_DATARDY);
++	ret = poll_down_timeout(i2c->base + REG_SM0CTL1, SM0_TRI_BUSY);
+ 	if (ret < 0)
+ 		dev_dbg(i2c->dev, "rx err(%d)\n", ret);
+ 
+ 	return ret;
+ }
+ 
+-static int mtk_i2c_wait_tx_done(struct mtk_i2c *i2c)
+-{
+-	int ret;
+-
+-	ret = poll_up_timeout(i2c->base + REG_SM0ST, I2C_SDOEMPTY);
+-	if (ret < 0)
+-		dev_dbg(i2c->dev, "tx err(%d)\n", ret);
+-
+-	return ret;
+-}
+-
+ static void mtk_i2c_reset(struct mtk_i2c *i2c)
+ {
+ 	u32 reg;
+@@ -196,7 +185,7 @@ static void mtk_i2c_reset(struct mtk_i2c *i2c)
+ 	mtk_i2c_w32(i2c, reg, REG_SM0CTL0);
+ 
+ 	/* auto mode */
+-	mtk_i2c_w32(i2c, AUTOMODE_EN, REG_SM0CFG2);
++	mtk_i2c_w32(i2c, 0, REG_SM0CFG2);
+ }
+ 
+ static void mtk_i2c_dump_reg(struct mtk_i2c *i2c)
+@@ -215,19 +204,37 @@ static void mtk_i2c_dump_reg(struct mtk_i2c *i2c)
+ 			mtk_i2c_r32(i2c, REG_SM0CTL1));
+ }
+ 
++static void mtk_i2c_read(struct mtk_i2c *i2c, int len, uint8_t* buf){
++        int pkt_num=0;
++        int i;
++        uint64_t d;
++   	while(len>0){
++                int plen=len; 
++                if(plen > 8)
++                  plen = 8;
++	     	mtk_i2c_w32(i2c, (0xFF<<16) | ((plen-1) << 8) | (SM0_MODE_READ_ACK << 4) | 1, REG_SM0CTL1);
++		mtk_i2c_wait_done(i2c);
++                d = mtk_i2c_r32(i2c,REG_SM0D0) | ((uint64_t)mtk_i2c_r32(i2c,REG_SM0D1)<<32UL);
++                for(i=0; i < plen; i++){
++                   buf[i+pkt_num*8] = d >> (8*i);
++                }
++           	len -= plen;
++                pkt_num++;
++	}
++}
++
+ static int mtk_i2c_master_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
+ 		int num)
+ {
+ 	struct mtk_i2c *i2c;
+ 	struct i2c_msg *pmsg;
+ 	int i, j, ret;
+-	u32 cmd;
++        int pkt_num, plen,len;
+ 
+ 	i2c = i2c_get_adapdata(adap);
+ 
+ 	for (i = 0; i < num; i++) {
+ 		pmsg = &msgs[i];
+-		cmd = 0;
+ 
+ 		dev_dbg(i2c->dev, "addr: 0x%x, len: %d, flags: 0x%x\n",
+ 				pmsg->addr, pmsg->len, pmsg->flags);
+@@ -249,43 +256,53 @@ static int mtk_i2c_master_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
+ 		if (pmsg->len == 0) {
+ 			dev_dbg(i2c->dev, "length is 0\n");
+ 			return -EINVAL;
+-		} else
+-			mtk_i2c_w32(i2c, SET_BYTECNT(pmsg->len),
+-					REG_SM0CFG1);
+-
++		}
++//		mtk_i2c_w32(i2c, SET_BYTECNT(pmsg->len),
++//					REG_SM0CFG1);
++
++                //Issue start
++                mtk_i2c_w32(i2c, (0xFF<<16) | (0 << 8) | (SM0_MODE_START << 4) | 1, REG_SM0CTL1);
++		mtk_i2c_wait_done(i2c);
++      
++                //Address on the b
++                mtk_i2c_w32(i2c, ((pmsg->addr << 1) | ((pmsg->flags & I2C_M_RD)?1:0))& 0xFF, REG_SM0D0);
++                mtk_i2c_w32(i2c, (0xFF<<16) | (0 << 8) | (SM0_MODE_WRITE << 4) | 1, REG_SM0CTL1);
++         	mtk_i2c_wait_done(i2c);
++                
+ 		j = 0;
+-		if (pmsg->flags & I2C_M_RD) {
+-			cmd |= READ_CMD;
+-			/* start transfer */
+-			barrier();
+-			mtk_i2c_w32(i2c, cmd, REG_SM0AUTO);
+-			do {
+-				/* wait */
+-				if ((ret = mtk_i2c_wait_rx_done(i2c)))
+-					goto err_timeout;
+-				/* read data */
+-				if (pmsg->len)
+-					pmsg->buf[j] = mtk_i2c_r32(i2c,
+-							REG_SM0DIN);
+-				j++;
+-			} while (j < pmsg->len);
++                if (pmsg->flags & I2C_M_RECV_LEN) {
++                       mtk_i2c_read(i2c, 1, pmsg->buf);
++                       if(pmsg->buf[0] < I2C_SMBUS_BLOCK_MAX && pmsg->buf[0] > 0)
++                          mtk_i2c_read(i2c, pmsg->buf[0], &pmsg->buf[1]);
++                       else{
++                          printk(KERN_ERR, "RECV_LEN bogus\n");                            
++                          return -EINVAL;
++                       }
++                }else if (pmsg->flags & I2C_M_RD) {
++                       mtk_i2c_read(i2c, pmsg->len, pmsg->buf);
+ 		} else {
+-			do {
+-				/* write data */
+-				if (pmsg->len)
+-					mtk_i2c_w32(i2c, pmsg->buf[j],
+-							REG_SM0DOUT);
+-				/* start transfer */
+-				if (j == 0) {
+-					barrier();
+-					mtk_i2c_w32(i2c, cmd, REG_SM0AUTO);
+-				}
+-				/* wait */
+-				if ((ret = mtk_i2c_wait_tx_done(i2c)))
+-					goto err_timeout;
+-				j++;
+-			} while (j < pmsg->len);
++			plen = pmsg->len;
++			pkt_num = 0;
++               		while(plen>0){
++				len = plen;
++				if(len>8)
++					len = 8;
++	                        uint64_t verb=0;
++       	                 	for(j=0; j < len; j++){
++					verb |= pmsg->buf[j+pkt_num*8] << (j*8);
++       	                 	}
++       	                 	mtk_i2c_w32(i2c, verb, REG_SM0D0);
++       	                 	mtk_i2c_w32(i2c, verb>>32, REG_SM0D1);
++
++                     		mtk_i2c_w32(i2c, (0xFF<<16) | (((pmsg->len-1)&0x7) << 8) | (SM0_MODE_WRITE << 4) | 1, REG_SM0CTL1);
++              			mtk_i2c_wait_done(i2c);
++				plen -= len;
++				pkt_num++;
++			}
+ 		}
++
++                mtk_i2c_w32(i2c, (0xFF<<16) | (0 << 8) | (SM0_MODE_STOP << 4) | 1, REG_SM0CTL1);
++		mtk_i2c_wait_done(i2c);
+ 	}
+ 	/* the return value is number of executed messages */
+ 	ret = i;
+@@ -326,7 +343,7 @@ static void mtk_i2c_init(struct mtk_i2c *i2c)
+ 	if (i2c->clk_div > CLK_DIV_MASK)
+ 		i2c->clk_div = CLK_DIV_MASK;
+ 
+-	mtk_i2c_reset(i2c);
++	mtk_i2c_reset(i2c); 
+ }
+ 
+ static int mtk_i2c_probe(struct platform_device *pdev)
+@@ -365,7 +382,7 @@ static int mtk_i2c_probe(struct platform_device *pdev)
+ 
+ 	if (of_property_read_u32(pdev->dev.of_node,
+ 				"clock-frequency", &i2c->cur_clk))
+-		i2c->cur_clk = 100000;
++		i2c->cur_clk = 400000;
+ 
+ 	adap = &i2c->adap;
+ 	adap->owner = THIS_MODULE;
+diff --git a/drivers/watchdog/mt7621_wdt.c b/drivers/watchdog/mt7621_wdt.c
+index d5735c12..020c2e61 100644
+--- a/drivers/watchdog/mt7621_wdt.c
++++ b/drivers/watchdog/mt7621_wdt.c
+@@ -54,6 +54,8 @@ static inline u32 rt_wdt_r32(unsigned reg)
+ 
+ static int mt7621_wdt_ping(struct watchdog_device *w)
+ {
++//	pr_crit("watchdog ping\n");
++
+ 	rt_wdt_w32(TIMER_REG_TMRSTAT, TMR1CTL_RESTART);
+ 
+ 	return 0;
+@@ -61,8 +63,9 @@ static int mt7621_wdt_ping(struct watchdog_device *w)
+ 
+ static int mt7621_wdt_set_timeout(struct watchdog_device *w, unsigned int t)
+ {
++//	pr_crit("watchdog set timeout %u\n", t);
+ 	w->timeout = t;
+-	rt_wdt_w32(TIMER_REG_TMR1LOAD, t * 1000);
++	rt_wdt_w32(TIMER_REG_TMR1LOAD, t * 250);
+ 	mt7621_wdt_ping(w);
+ 
+ 	return 0;
+@@ -72,8 +75,10 @@ static int mt7621_wdt_start(struct watchdog_device *w)
+ {
+ 	u32 t;
+ 
+-	/* set the prescaler to 1ms == 1000us */
+-	rt_wdt_w32(TIMER_REG_TMR1CTL, 1000 << TMR1CTL_PRESCALE_SHIFT);
++//	pr_crit("watchdog start\n");
++
++	/* set the prescaler to 4ms == 4000us */
++	rt_wdt_w32(TIMER_REG_TMR1CTL, 4000 << TMR1CTL_PRESCALE_SHIFT);
+ 
+ 	mt7621_wdt_set_timeout(w, w->timeout);
+ 
+@@ -121,8 +126,8 @@ static struct watchdog_ops mt7621_wdt_ops = {
+ static struct watchdog_device mt7621_wdt_dev = {
+ 	.info = &mt7621_wdt_info,
+ 	.ops = &mt7621_wdt_ops,
+-	.min_timeout = 1,
+-	.max_timeout = 0xfffful / 1000,
++	.min_timeout = 4,
++	.max_timeout = 0xfffful / 250,
+ };
+ 
+ static int mt7621_wdt_probe(struct platform_device *pdev)
+@@ -159,6 +164,8 @@ static int mt7621_wdt_remove(struct platform_device *pdev)
+ 
+ static void mt7621_wdt_shutdown(struct platform_device *pdev)
+ {
++//	pr_crit("watchdog shutdown\n");
++
+ 	mt7621_wdt_stop(&mt7621_wdt_dev);
+ }
+ 
