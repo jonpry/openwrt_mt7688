@@ -1,26 +1,526 @@
 /dts-v1/;
 
-#include "WRTNODE2.dtsi"
-
 / {
+	#size-cells = <0x1>;
+	#address-cells = <0x1>;
 	compatible = "wrtnode,wrtnode2r", "wrtnode,wrtnode2", "mediatek,mt7628an-soc";
 	model = "WRTnode2R";
+
+	cpus {
+
+		cpu@0 {
+			compatible = "mips,mips24KEc";
+		};
+	};
+
+	pcie@10140000 {
+		bus-range = <0x0 0xff>;
+		interrupt-parent = <0x3>;
+		resets = <0x1 0x1a 0x1 0x1b>;
+		#size-cells = <0x2>;
+		#address-cells = <0x3>;
+		device_type = "pci";
+		reg = <0x10140000 0x100 0x10142000 0x100>;
+		interrupts = <0x4>;
+		clock-names = "pcie0", "pcie1";
+		compatible = "mediatek,mt7620-pci";
+		status = "okay";
+		reset-names = "pcie0", "pcie1";
+		ranges = <0x2000000 0x0 0x0 0x20000000 0x0 0x10000000 0x1000000 0x0 0x0 0x10160000 0x0 0x10000>;
+		clocks = <0xd 0x1a 0xd 0x1b>;
+
+		pcie-bridge {
+			#size-cells = <0x2>;
+			#address-cells = <0x3>;
+			device_type = "pci";
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+		};
+	};
+
+	sdhci@10130000 {
+		pinctrl-names = "default";
+		interrupt-parent = <0x2>;
+		mediatek,cd-poll;
+		pinctrl-0 = <0xe>;
+		reg = <0x10130000 0x4000>;
+		interrupts = <0xe>;
+		compatible = "ralink,mt7620-sdhci";
+		status = "okay";
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,57600";
+	};
+
+	cpuintc@0 {
+		#address-cells = <0x0>;
+		#interrupt-cells = <0x1>;
+		phandle = <0x3>;
+		compatible = "mti,cpu-interrupt-controller";
+		interrupt-controller;
+		linux,phandle = <0x3>;
+	};
+
+	ehci@101c0000 {
+		interrupt-parent = <0x2>;
+		phys = <0xf 0x1>;
+		reg = <0x101c0000 0x1000>;
+		interrupts = <0x12>;
+		compatible = "generic-ehci";
+		phy-names = "usb";
+	};
+
+	palmbus@10000000 {
+		#size-cells = <0x1>;
+		#address-cells = <0x1>;
+		reg = <0x10000000 0x200000>;
+		compatible = "palmbus";
+		ranges = <0x0 0x10000000 0x1fffff>;
+
+		spi@b00 {
+			pinctrl-names = "default";
+			resets = <0x1 0x12>;
+			pinctrl-0 = <0x6>;
+			#size-cells = <0x0>;
+			#address-cells = <0x1>;
+			reg = <0xb00 0x100>;
+			compatible = "ralink,mt7621-spi";
+			status = "okay";
+			reset-names = "spi";
+
+			spidev@1 {
+				spi-max-frequency = <0x989680>;
+				#size-cells = <0x1>;
+				#address-cells = <0x1>;
+				reg = <0x1>;
+				compatible = "linux,spidev";
+			};
+
+			m25p80@0 {
+				spi-max-frequency = <0x989680>;
+				#size-cells = <0x1>;
+				#address-cells = <0x1>;
+				reg = <0x0>;
+				compatible = "jedec,spi-nor";
+				m25p,chunked-io = <0x20>;
+
+				partition@50000 {
+					reg = <0x50000 0x1fb0000>;
+					label = "firmware";
+				};
+
+				partition@30000 {
+					reg = <0x30000 0x10000>;
+					read-only;
+					label = "u-boot-env";
+				};
+
+				partition@40000 {
+					reg = <0x40000 0x10000>;
+					phandle = <0x11>;
+					label = "factory";
+					linux,phandle = <0x11>;
+				};
+
+				partition@0 {
+					reg = <0x0 0x30000>;
+					label = "u-boot";
+				};
+			};
+		};
+
+		gpio@600 {
+			interrupt-parent = <0x2>;
+			#size-cells = <0x0>;
+			#address-cells = <0x1>;
+			reg = <0x600 0x100>;
+			interrupts = <0x6>;
+			compatible = "mtk,mt7628-gpio", "mtk,mt7621-gpio";
+
+			bank@2 {
+				reg = <0x2>;
+				gpio-controller;
+				compatible = "mtk,mt7621-gpio-bank";
+				#gpio-cells = <0x2>;
+			};
+
+			bank@1 {
+				reg = <0x1>;
+				phandle = <0x12>;
+				gpio-controller;
+				compatible = "mtk,mt7621-gpio-bank";
+				#gpio-cells = <0x2>;
+				linux,phandle = <0x12>;
+			};
+
+			bank@0 {
+				reg = <0x0>;
+				gpio-controller;
+				compatible = "mtk,mt7621-gpio-bank";
+				#gpio-cells = <0x2>;
+			};
+		};
+
+		uartlite@c00 {
+			pinctrl-names = "default";
+			interrupt-parent = <0x2>;
+			resets = <0x1 0xc>;
+			pinctrl-0 = <0x7>;
+			no-loopback-test;
+			reg = <0xc00 0x100>;
+			reg-io-width = <0x4>;
+			interrupts = <0x14>;
+			clock-frequency = <0x2625a00>;
+			compatible = "ns16550a";
+			reset-names = "uartl";
+			reg-shift = <0x2>;
+		};
+
+		i2c@900 {
+			pinctrl-names = "default";
+			resets = <0x1 0x10>;
+			pinctrl-0 = <0x4>;
+			#size-cells = <0x0>;
+			#address-cells = <0x1>;
+			reg = <0x900 0x100>;
+			compatible = "mediatek,mt7621-i2c";
+			status = "okay";
+			reset-names = "i2c";
+		};
+
+		gdma@2800 {
+			interrupt-parent = <0x2>;
+			resets = <0x1 0xe>;
+			#dma-channels = <0x10>;
+			reg = <0x2800 0x800>;
+			phandle = <0x5>;
+			#dma-cells = <0x1>;
+			interrupts = <0x7>;
+			#dma-requests = <0x10>;
+			compatible = "ralink,rt3883-gdma";
+			status = "disabled";
+			reset-names = "dma";
+			linux,phandle = <0x5>;
+		};
+
+		pwm@5000 {
+			pinctrl-names = "default";
+			resets = <0x1 0x1f>;
+			pinctrl-0 = <0xa 0xb>;
+			reg = <0x5000 0x1000>;
+			compatible = "mediatek,mt7628-pwm";
+			status = "disabled";
+			reset-names = "pwm";
+		};
+
+		uart2@e00 {
+			pinctrl-names = "default";
+			interrupt-parent = <0x2>;
+			resets = <0x1 0x14>;
+			pinctrl-0 = <0x9>;
+			no-loopback-test;
+			reg = <0xe00 0x100>;
+			reg-io-width = <0x4>;
+			interrupts = <0x16>;
+			clock-frequency = <0x2625a00>;
+			compatible = "ns16550a";
+			status = "disabled";
+			reset-names = "uart2";
+			reg-shift = <0x2>;
+		};
+
+		pcm@2000 {
+			interrupt-parent = <0x2>;
+			resets = <0x1 0xb>;
+			reg = <0x2000 0x800>;
+			interrupts = <0x4>;
+			compatible = "ralink,mt7620a-pcm";
+			status = "disabled";
+			reset-names = "pcm";
+		};
+
+		i2s@a00 {
+			dma-names = "tx", "rx";
+			interrupt-parent = <0x2>;
+			resets = <0x1 0x11>;
+			reg = <0xa00 0x100>;
+			interrupts = <0xa>;
+			txdma-req = <0x2>;
+			compatible = "mediatek,mt7628-i2s";
+			status = "disabled";
+			reset-names = "i2s";
+			rxdma-req = <0x3>;
+			dmas = <0x5 0x4 0x5 0x6>;
+		};
+
+		memc@300 {
+			interrupt-parent = <0x2>;
+			resets = <0x1 0x14>;
+			reg = <0x300 0x100>;
+			interrupts = <0x3>;
+			compatible = "ralink,mt7620a-memc", "ralink,rt3050-memc";
+			reset-names = "mc";
+		};
+
+		intc@200 {
+			interrupt-parent = <0x3>;
+			resets = <0x1 0x9>;
+			#interrupt-cells = <0x1>;
+			reg = <0x200 0x100>;
+			phandle = <0x2>;
+			interrupts = <0x2>;
+			compatible = "ralink,mt7628an-intc", "ralink,rt2880-intc";
+			ralink,intc-registers = <0x9c 0xa0 0x6c 0xa4 0x80 0x78>;
+			reset-names = "intc";
+			interrupt-controller;
+			linux,phandle = <0x2>;
+		};
+
+		sysc@0 {
+			reg = <0x0 0x100>;
+			compatible = "ralink,mt7620a-sysc";
+		};
+
+		uart1@d00 {
+			pinctrl-names = "default";
+			interrupt-parent = <0x2>;
+			resets = <0x1 0x13>;
+			pinctrl-0 = <0x8>;
+			no-loopback-test;
+			reg = <0xd00 0x100>;
+			reg-io-width = <0x4>;
+			interrupts = <0x15>;
+			clock-frequency = <0x2625a00>;
+			compatible = "ns16550a";
+			status = "okay";
+			reset-names = "uart1";
+			reg-shift = <0x2>;
+		};
+
+		watchdog@120 {
+			interrupt-parent = <0x2>;
+			resets = <0x1 0x8>;
+			reg = <0x100 0x40>;
+			interrupts = <0x18>;
+			compatible = "ralink,mt7628an-wdt", "mediatek,mt7621-wdt";
+			reset-names = "wdt";
+		};
+	};
+
+	pinctrl {
+		pinctrl-names = "default";
+		pinctrl-0 = <0xc>;
+		compatible = "ralink,rt2880-pinmux";
+
+		uart2 {
+			phandle = <0x9>;
+			linux,phandle = <0x9>;
+
+			uart2 {
+				ralink,function = "uart2";
+				ralink,group = "uart2";
+			};
+		};
+
+		pwm0 {
+			phandle = <0xa>;
+			linux,phandle = <0xa>;
+
+			pwm0 {
+				ralink,function = "pwm0";
+				ralink,group = "pwm0";
+			};
+		};
+
+		pcm_i2s {
+
+			pcm_i2s {
+				ralink,function = "pcm";
+				ralink,group = "i2s";
+			};
+		};
+
+		refclk {
+
+			refclk {
+				ralink,function = "refclk";
+				ralink,group = "refclk";
+			};
+		};
+
+		sdxc {
+			phandle = <0xe>;
+			linux,phandle = <0xe>;
+
+			sdxc {
+				ralink,function = "sdxc";
+				ralink,group = "sdmode";
+			};
+		};
+
+		pwm1 {
+			phandle = <0xb>;
+			linux,phandle = <0xb>;
+
+			pwm1 {
+				ralink,function = "pwm1";
+				ralink,group = "pwm1";
+			};
+		};
+
+		uart1 {
+			phandle = <0x8>;
+			linux,phandle = <0x8>;
+
+			uart1 {
+				ralink,function = "uart1";
+				ralink,group = "uart1";
+			};
+		};
+
+		pinctrl0 {
+			phandle = <0xc>;
+			linux,phandle = <0xc>;
+
+			gpio {
+				ralink,function = "gpio";
+				ralink,group = "i2s", "gpio", "wled_an";
+			};
+		};
+
+		i2s {
+
+			i2s {
+				ralink,function = "i2s";
+				ralink,group = "i2s";
+			};
+		};
+
+		i2c {
+			phandle = <0x4>;
+			linux,phandle = <0x4>;
+
+			i2c {
+				ralink,function = "i2c";
+				ralink,group = "i2c";
+			};
+		};
+
+		spi_cs1 {
+
+			spi_cs1 {
+				ralink,function = "spi cs1";
+				ralink,group = "spi cs1";
+			};
+		};
+
+		uartlite {
+			phandle = <0x7>;
+			linux,phandle = <0x7>;
+
+			uartlite {
+				ralink,function = "uart0";
+				ralink,group = "uart0";
+			};
+		};
+
+		spi {
+			phandle = <0x6>;
+			linux,phandle = <0x6>;
+
+			spi {
+				ralink,function = "spi";
+				ralink,group = "spi";
+			};
+		};
+	};
+
+	rstctrl {
+		#reset-cells = <0x1>;
+		phandle = <0x1>;
+		compatible = "ralink,mt7620a-reset", "ralink,rt2880-reset";
+		linux,phandle = <0x1>;
+	};
+
+	usbphy@10120000 {
+		resets = <0x1 0x16 0x1 0x19>;
+		reg = <0x10120000 0x1000>;
+		phandle = <0xf>;
+		#phy-cells = <0x1>;
+		clock-names = "host", "device";
+		compatible = "ralink,mt7628an-usbphy", "mediatek,mt7620-usbphy";
+		reset-names = "host", "device";
+		clocks = <0xd 0x16 0xd 0x19>;
+		linux,phandle = <0xf>;
+	};
+
+	ohci@101c1000 {
+		interrupt-parent = <0x2>;
+		phys = <0xf 0x1>;
+		reg = <0x101c1000 0x1000>;
+		interrupts = <0x12>;
+		compatible = "generic-ohci";
+		phy-names = "usb";
+	};
+
+	esw@10110000 {
+		mediatek,portdisable = <0x3a>;
+		mediatek,portmap = <0x7>;
+		interrupt-parent = <0x2>;
+		resets = <0x1 0x17>;
+		reg = <0x10110000 0x8000>;
+		phandle = <0x10>;
+		interrupts = <0x11>;
+		compatible = "mediatek,mt7628-esw", "ralink,rt3050-esw";
+		reset-names = "esw";
+		linux,phandle = <0x10>;
+	};
+
+	gpio-keys-polled {
+		#size-cells = <0x0>;
+		#address-cells = <0x1>;
+		compatible = "gpio-keys-polled";
+		poll-interval = <0x14>;
+	};
 
 	gpio-leds {
 		compatible = "gpio-leds";
 
 		indicator {
 			label = "wrtnode:blue:indicator";
-			gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
+			gpios = <0x12 0xc 0x1>;
 		};
-	}; 
-};
+	};
 
-&pinctrl {
-	state_default: pinctrl0 {
-		gpio {
-			ralink,group = "i2c", "gpio", "wled_an";
-			ralink,function = "gpio";
-		};
+	aliases {
+		serial0 = "/palmbus@10000000/uartlite@c00";
+	};
+
+	clkctrl {
+		#clock-cells = <0x1>;
+		phandle = <0xd>;
+		compatible = "ralink,rt2880-clock";
+		linux,phandle = <0xd>;
+	};
+
+	ethernet@10100000 {
+		interrupt-parent = <0x3>;
+		mediatek,switch = <0x10>;
+		resets = <0x1 0x15 0x1 0x17>;
+		reg = <0x10100000 0x10000>;
+		interrupts = <0x5>;
+		mac-address = [00 0c 43 17 c5 88];
+		compatible = "ralink,rt5350-eth";
+		mtd-mac-address = <0x11 0x4>;
+		reset-names = "fe", "esw";
+	};
+
+	wmac@10300000 {
+		mediatek,mtd-eeprom = <0x11 0x0>;
+		interrupt-parent = <0x3>;
+		reg = <0x10300000 0x100000>;
+		interrupts = <0x6>;
+		compatible = "mediatek,mt7628-wmac";
+		status = "okay";
 	};
 };
