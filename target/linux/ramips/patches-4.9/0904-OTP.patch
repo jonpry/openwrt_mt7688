@@ -182,7 +182,7 @@ index 9cf7fcd2..c67e2a09 100644
  	nor->dev = &spi->dev;
  	spi_nor_set_flash_node(nor, spi->dev.of_node);
 diff --git a/drivers/mtd/spi-nor/spi-nor.c b/drivers/mtd/spi-nor/spi-nor.c
-index 31366314..64093f43 100644
+index 31366314..8bca5322 100644
 --- a/drivers/mtd/spi-nor/spi-nor.c
 +++ b/drivers/mtd/spi-nor/spi-nor.c
 @@ -17,6 +17,7 @@
@@ -249,7 +249,7 @@ index 31366314..64093f43 100644
  	{ "s25fl064k",  INFO(0xef4017,      0,  64 * 1024, 128, SECT_4K) },
  	{ "s25fl116k",  INFO(0x014015,      0,  64 * 1024,  32, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
  	{ "s25fl132k",  INFO(0x014016,      0,  64 * 1024,  64, SECT_4K) },
-@@ -1668,6 +1689,307 @@ static int s3an_nor_scan(const struct flash_info *info, struct spi_nor *nor)
+@@ -1668,6 +1689,308 @@ static int s3an_nor_scan(const struct flash_info *info, struct spi_nor *nor)
  	return 0;
  }
  
@@ -358,7 +358,7 @@ index 31366314..64093f43 100644
 +
 +	ret = nor->read_xfer(nor, &cfg, buf, len);
 +
-+nor->write_reg(nor,nor->otp_enso,0,0);
++nor->write_reg(nor,nor->otp_exso,0,0);
 +
 +	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_READ);
 +	return ret;
@@ -540,6 +540,7 @@ index 31366314..64093f43 100644
 +                nor->otp_enso = 0xB1;
 +                nor->otp_exso = 0xC1;
 +                mtd->_get_user_prot_info = macronix_get_user_otp_info;
++                break;
 +	default:
 +		return -EINVAL;
 +	}
@@ -557,7 +558,7 @@ index 31366314..64093f43 100644
  int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
  {
  	const struct flash_info *info = NULL;
-@@ -1888,6 +2210,13 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
+@@ -1888,6 +2211,13 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
  			return ret;
  	}
  
