@@ -33,7 +33,6 @@ define Package/mtd-utils/Default
   SECTION:=utils
   CATEGORY:=Utilities
   URL:=http://www.linux-mtd.infradead.org/
-  DEPENDS:=@NAND_SUPPORT
 endef
 
 define Package/ubi-utils
@@ -72,7 +71,7 @@ endef
 define Package/nand-utils/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) \
-	$(PKG_INSTALL_DIR)/usr/sbin/{nanddump,nandwrite,nandtest,mtdinfo} $(1)/usr/sbin/
+	$(PKG_INSTALL_DIR)/usr/sbin/{nanddump,nandwrite,nandtest,mtdinfo,flash_otp_info,flash_otp_dump,flash_otp_write} $(1)/usr/sbin/
 endef
 
 $(eval $(call BuildPackage,ubi-utils))
