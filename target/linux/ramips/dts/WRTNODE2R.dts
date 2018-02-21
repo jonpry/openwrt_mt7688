@@ -297,7 +297,7 @@
 			reg-shift = <0x2>;
 		};
 
-		watchdog@120 {
+		watchdog@100 {
 			interrupt-parent = <0x2>;
 			resets = <0x1 0x8>;
 			reg = <0x100 0x40>;
