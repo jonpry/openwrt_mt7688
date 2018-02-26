@@ -71,7 +71,7 @@ endef
 define Package/nand-utils/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) \
-	$(PKG_INSTALL_DIR)/usr/sbin/{nanddump,nandwrite,nandtest,mtdinfo,flash_otp_info,flash_otp_dump,flash_otp_write} $(1)/usr/sbin/
+	$(PKG_INSTALL_DIR)/usr/sbin/{nanddump,nandwrite,nandtest,mtdinfo,flash_otp_info,flash_otp_dump,flash_otp_write,flash_otp_lock} $(1)/usr/sbin/
 endef
 
 $(eval $(call BuildPackage,ubi-utils))
