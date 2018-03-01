@@ -1,0 +1,180 @@
+diff --git a/drivers/mtd/spi-nor/spi-nor.c b/drivers/mtd/spi-nor/spi-nor.c
+index c688ef0e..8547f185 100644
+--- a/drivers/mtd/spi-nor/spi-nor.c
++++ b/drivers/mtd/spi-nor/spi-nor.c
+@@ -162,6 +162,42 @@ static int read_cr(struct spi_nor *nor)
+ }
+ 
+ /*
++ * Read macronix security register, returning its value in the location.
++ * Returns negative if error occurs.
++ */
++static int read_scur(struct spi_nor *nor)
++{
++	int ret;
++	u8 val;
++
++	ret = nor->read_reg(nor, SPINOR_OP_RDSCUR, &val, sizeof(val));
++	if (ret < 0) {
++		dev_err(nor->dev, "error %d reading SCUR\n", ret);
++		return ret;
++	}
++
++	return val;
++}
++
++/*
++ * Writes macronix security register.
++ * Returns negative if error occurs.
++ */
++static int write_scur(struct spi_nor *nor, u8 val)
++{
++	int ret;
++	
++	printk(KERN_WARNING "debug:input val to write_scur is %d\n", val);
++	ret = nor->write_reg(nor, SPINOR_OP_WRSCUR, 0, 0);
++	if(ret < 0) {
++		dev_err(nor->dev, "error %d writing SCUR\n", ret);
++		printk(KERN_WARNING "debug:error from nor->write_reg\n");
++	}
++
++	return ret;
++}
++
++/*
+  * Dummy Cycle calculation for different type of read.
+  * It can be used to support more commands with
+  * different dummy cycle requirements.
+@@ -1762,10 +1798,16 @@ static int macronix_get_user_otp_info(struct mtd_info *mtd, size_t len,
+ 	int i, ret;
+ 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+ 
++	ret = read_scur(nor);
++	if (ret < 0)
++		return ret;
++
++#define MACRONIX_SR_LDSO_BIT_MASK	1	/* Lock-down Secured OTP(LDSO)bit */
++
+ 	for (i = 0; i < nor->n_otps; i++) {
+ 		otpinfo[i].start = i * nor->otp_size;
+ 		otpinfo[i].length = nor->otp_size;
+-		otpinfo[i].locked = 0;
++		otpinfo[i].locked = (ret & BIT(MACRONIX_SR_LDSO_BIT_MASK));
+ 	}
+ 
+ 	*retlen = nor->n_otps * sizeof(*otpinfo);
+@@ -1826,7 +1868,7 @@ static int spi_nor_read_user_otp(struct mtd_info *mtd, loff_t from, size_t len,
+ 
+         for(i=0; i < len; i+=read_len){
+ 
+-		new_addr = i;
++		new_addr = from + i;
+ 		ret = spi_nor_read_security_reg(nor, new_addr, read_len, &buf[i]);
+ 		if (ret < 0)
+ 			return ret;
+@@ -1837,26 +1879,6 @@ static int spi_nor_read_user_otp(struct mtd_info *mtd, loff_t from, size_t len,
+ 	return 0;
+ }
+ 
+-static int spi_nor_erase_security_reg(struct spi_nor *nor, loff_t offset)
+-{
+-	int ret;
+-	struct spi_nor_xfer_cfg cfg = {};
+-
+-	write_enable(nor);
+-
+-	cfg.cmd = nor->otp_erase_opcode;
+-	cfg.addr = offset;
+-	cfg.addr_width = nor->addr_width;
+-	cfg.mode = SPI_NOR_NORMAL;
+-
+-	ret = nor->write_xfer(nor, &cfg, NULL, 0);
+-
+-	if (ret < 0)
+-		return ret;
+-
+-	return spi_nor_wait_till_ready(nor);
+-}
+-
+ static ssize_t spi_nor_write_security_reg(struct spi_nor *nor, loff_t to,
+ 	size_t len, u_char *buf)
+ {
+@@ -1881,7 +1903,8 @@ nor->write_reg(nor,nor->otp_enso,0,0);
+ 
+ 	write_enable(nor);
+ 	ret = nor->write_xfer(nor, &cfg, buf, len);
+-
++	write_disable(nor);
++        spi_nor_wait_till_ready(nor);
+ 
+ nor->write_reg(nor,nor->otp_exso,0,0);
+ 
+@@ -1900,12 +1923,47 @@ unlock:
+ 	return ret;
+ }
+ 
++static int macronix_write_security_reg(struct mtd_info *mtd, loff_t from,
++	size_t len)
++{
++	printk(KERN_WARNING "debug: inside write sec reg\n");
++	
++	u8 val = 1;
++	int ret = 0;
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++
++	val = read_scur(nor);
++
++#define MACRONIX_SR_LDSO_BIT_MASK	1	/* Lock-down Secured OTP(LDSO) bit */	
++	u8 write_val = val | BIT(MACRONIX_SR_LDSO_BIT_MASK);
++
++	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_WRITE);
++	if (ret)
++		return ret;
++	ret = write_enable(nor);
++	spi_nor_wait_till_ready(nor);
++	if (!ret){
++		ret = write_scur(nor, write_val);
++	}
++	spi_nor_wait_till_ready(nor);
++
++write_disable:
++	write_disable(nor);
++	spi_nor_wait_till_ready(nor);
++unlock:
++	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_WRITE);
++	//checking if write was successful
++	val = read_scur(nor);
++	printk(KERN_WARNING "debug:new val of macronix sec reg is %d\n", val);
++	return ret;
++}
++
+ static int spi_nor_write_user_otp(struct mtd_info *mtd, loff_t to, size_t len,
+ 	size_t *retlen, u_char *buf)
+ {
+ 	int i;
+ 	int ret;
+-	loff_t end_addr, new_addr;
++	loff_t end_addr;
+ 	size_t write_len;
+ 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
+ 	size_t total_size = nor->otp_size * nor->n_otps;
+@@ -1922,10 +1980,8 @@ static int spi_nor_write_user_otp(struct mtd_info *mtd, loff_t to, size_t len,
+ //printk("wotp: 3\n");
+ 	write_len = 8;
+ 	for(i=0; i < len; i+=write_len){
+-		new_addr = i;
+-
+ //printk("wotp: 4\n");
+-		ret = spi_nor_write_security_reg(nor, new_addr, write_len, &buf[i]);
++		ret = spi_nor_write_security_reg(nor, to+i, write_len, &buf[i]);
+ 		if (ret < 0)
+ 			return ret;
+ 
+@@ -1959,6 +2015,7 @@ static int spi_nor_set_otp_info(struct spi_nor *nor,
+                 nor->otp_enso = 0xB1;
+                 nor->otp_exso = 0xC1;
+                 mtd->_get_user_prot_info = macronix_get_user_otp_info;
++		mtd->_lock_user_prot_reg = macronix_write_security_reg;
+                 break;
+ 	default:
+ 		return -EINVAL;
