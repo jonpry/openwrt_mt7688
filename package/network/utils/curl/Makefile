@@ -60,7 +60,6 @@ PKG_CONFIG_DEPENDS:= \
   CONFIG_LIBCURL_CRYPTO_AUTH \
   CONFIG_LIBCURL_LIBCURL_OPTION \
   CONFIG_LIBCURL_PROXY \
-  CONFIG_LIBCURL_THREADED_RESOLVER \
   CONFIG_LIBCURL_TLS_SRP \
   CONFIG_LIBCURL_UNIX_SOCKETS \
   CONFIG_LIBCURL_VERBOSE \
@@ -87,8 +86,8 @@ define Package/libcurl
   SECTION:=libs
   CATEGORY:=Libraries
   DEPENDS:= +LIBCURL_WOLFSSL:libwolfssl +LIBCURL_OPENSSL:libopenssl +LIBCURL_GNUTLS:libgnutls +LIBCURL_MBEDTLS:libmbedtls
-  DEPENDS += +LIBCURL_ZLIB:zlib +LIBCURL_THREADED_RESOLVER:libpthread +LIBCURL_LDAP:libopenldap +LIBCURL_LIBIDN:libidn
-  DEPENDS += +LIBCURL_SSH2:libssh2 +LIBCURL_NGHTTP2:libnghttp2
+  DEPENDS += +LIBCURL_ZLIB:zlib +LIBCURL_LDAP:libopenldap +LIBCURL_LIBIDN:libidn
+  DEPENDS += +LIBCURL_SSH2:libssh2 +LIBCURL_NGHTTP2:libnghttp2 +libcares
   TITLE:=A client-side URL transfer library
   MENU:=1
 endef
@@ -111,6 +110,7 @@ CONFIGURE_ARGS += \
 	--without-nss \
 	--without-libmetalink \
 	--without-librtmp \
+        --enable-ares \
 	\
 	$(call autoconf_bool,CONFIG_IPV6,ipv6) \
 	\
@@ -143,7 +143,6 @@ CONFIGURE_ARGS += \
 	$(call autoconf_bool,CONFIG_LIBCURL_CRYPTO_AUTH,crypto-auth) \
 	$(call autoconf_bool,CONFIG_LIBCURL_LIBCURL_OPTION,libcurl-option) \
 	$(call autoconf_bool,CONFIG_LIBCURL_PROXY,proxy) \
-	$(call autoconf_bool,CONFIG_LIBCURL_THREADED_RESOLVER,threaded-resolver) \
 	$(call autoconf_bool,CONFIG_LIBCURL_TLS_SRP,tls-srp) \
 	$(call autoconf_bool,CONFIG_LIBCURL_UNIX_SOCKETS,unix-sockets) \
 	$(call autoconf_bool,CONFIG_LIBCURL_VERBOSE,verbose) \
