@@ -7,12 +7,10 @@ RUN apt-get update &&\
 RUN useradd -m openwrt &&\
     echo 'openwrt ALL=NOPASSWD: ALL' > /etc/sudoers.d/openwrt
 
-ARG SSH_PRIVATE_KEY
-RUN mkdir /root/.ssh/
-RUN echo "${SSH_PRIVATE_KEY}" > /root/.ssh/id_rsa
 
 
-RUN sudo -iu openwrt bash -c "pwd; git clone git@github.com:jonpry/openwrt_mt7688.git openwrt"
+#RUN sudo -iu openwrt bash -c "pwd; git clone git@github.com:jonpry/openwrt_mt7688.git openwrt"
+COPY . openwrt/
 RUN sudo -iu openwrt bash -c "cp ./SGD-def.config .config; openwrt/scripts/feeds update; cd openwrt; make defconfig; make download"
 RUN sudo -iu openwrt bash -c "make V=s"
 
