@@ -1,7 +1,15 @@
-src-git packages https://git.openwrt.org/feed/packages.git
-src-git luci https://git.openwrt.org/project/luci.git
-src-git routing https://git.openwrt.org/feed/routing.git
-src-git telephony https://git.openwrt.org/feed/telephony.git
+# PACKAGES this points to the latest commit on 3/9/2018 in branch lede-17.01
+src-git packages https://git.openwrt.org/feed/packages.git^0b748a3ac5960225ae35f24f7035ce64732d0d3f
+
+# LUCI (do we use it?) this points to the latest commit on 3/9/2018 in branch lede-17.01
+src-git luci https://git.openwrt.org/project/luci.git^d09277299c402bbc01c9558048359f12a31a2989
+
+# ROUTING this points to the latest commit on 3/9/2018 in branch lede-17.01
+src-git routing https://git.openwrt.org/feed/routing.git^45d25d4dc41b5ab1b5e54d9425fec2ce66bc2f9a
+
+# TELEPHONY this points to the latest commit on 3/9/2018 in branch lede-17.01
+src-git telephony https://git.openwrt.org/feed/telephony.git^9aadde80a3856d652aeb690c49ac117ef9053faa
+
 src-git stel git@github.com:/jonpry/feed
 #src-git video https://github.com/openwrt/video.git
 #src-git targets https://github.com/openwrt/targets.git
