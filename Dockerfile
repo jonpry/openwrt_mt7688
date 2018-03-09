@@ -6,7 +6,7 @@ RUN apt-get update &&\
     apt-get clean
 RUN useradd -m openwrt &&\
     echo 'openwrt ALL=NOPASSWD: ALL' > /etc/sudoers.d/openwrt
-#RUN sudo -iu openwrt bash -c "pwd; git clone git@github.com:jonpry/openwrt_mt7688.git openwrt"
-RUN sudo -iu openwrt bash -c "cp ./SGD-def.config .config; ./scripts/feeds update; cd openwrt; make defconfig; make download"
-RUN sudo -iu openwrt bash -c "make V=s"
+RUN sudo -iu openwrt bash -c "pwd; git clone git@github.com:jonpry/openwrt_mt7688.git openwrt"
+RUN sudo -iu openwrt bash -c "cp openwrt/SGD-def.config openwrt/.config; openwrt/scripts/feeds update; cd openwrt; make defconfig; make download"
+RUN sudo -iu openwrt bash -c "cd openwrt/; make V=s"
 
