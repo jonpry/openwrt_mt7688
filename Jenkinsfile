@@ -6,7 +6,7 @@ node {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
 
-        app = docker.build("acourdavault/openwrt", "--build-arg SSH_PRIVATE_KEY=$(cat ~/.ssh/id_rsa))
+        app = docker.build("acourdavault/openwrt", "--build-arg SSH_PRIVATE_KEY=$(cat ~/.ssh/id_rsa)")
     }
 
     stage('Test image') {
