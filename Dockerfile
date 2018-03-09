@@ -11,6 +11,6 @@ RUN useradd -m openwrt &&\
 
 #RUN sudo -iu openwrt bash -c "pwd; git clone git@github.com:jonpry/openwrt_mt7688.git openwrt"
 COPY . openwrt/
-RUN sudo -iu openwrt bash -c "cp ./SGD-def.config .config; openwrt/scripts/feeds update; cd openwrt; make defconfig; make download"
-RUN sudo -iu openwrt bash -c "make V=s"
+RUN sudo -iu openwrt bash -c "cd openwrt; cp ./SGD-def.config .config; openwrt/scripts/feeds update; make defconfig; make download"
+RUN sudo -iu openwrt bash -c "cd openwrt; make V=s"
 
