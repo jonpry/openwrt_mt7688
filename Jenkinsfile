@@ -5,7 +5,7 @@ node {
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
-
+        sh 'cp -R /var/jenkins_home/.ssh ./temp_ssh'
         app = docker.build("acourdavault/openwrt")
     }
 
