@@ -6,6 +6,9 @@ node {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
 
+        sh 'cp ./SGD-def.config .config'
+        sh './scripts/feeds update'
+        sh './scripts/feeds install -a'
         app = docker.build("acourdavault/openwrt")
     }
 
