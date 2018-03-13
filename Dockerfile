@@ -12,5 +12,5 @@ COPY --chown=openwrt:openwrt . /home/openwrt/openwrt/
 COPY --chown=openwrt:openwrt ./temp_ssh /home/openwrt/.ssh
 
 RUN sudo -iu openwrt bash -c "pwd; ls; ls .ssh/; cd openwrt; cp ./SGD-def.config .config; ./scripts/feeds update; ./scripts/feeds install -a; make download"
-RUN sudo -iu openwrt bash -c "cd openwrt; make -j16 package/toolchain/compile"
+RUN sudo -iu openwrt bash -c "cd openwrt; make -j16"
 
