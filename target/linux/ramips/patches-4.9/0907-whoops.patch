@@ -1,0 +1,15 @@
+diff --git a/include/linux/mtd/spi-nor.h b/include/linux/mtd/spi-nor.h
+index ec55a45f..1141e0f1 100644
+--- a/include/linux/mtd/spi-nor.h
++++ b/include/linux/mtd/spi-nor.h
+@@ -59,6 +59,10 @@
+ #define SPINOR_OP_RDCR		0x35	/* Read configuration register */
+ #define SPINOR_OP_RDFSR		0x70	/* Read flag status register */
+ 
++#define SPINOR_OP_RDSCUR	0x2b
++#define SPINOR_OP_WRSCUR	0x2f
++
++
+ /* 4-byte address opcodes - used on Spansion and some Macronix flashes. */
+ #define SPINOR_OP_READ_4B	0x13	/* Read data bytes (low frequency) */
+ #define SPINOR_OP_READ_FAST_4B	0x0c	/* Read data bytes (high frequency) */
