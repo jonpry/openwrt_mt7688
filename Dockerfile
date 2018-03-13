@@ -8,9 +8,9 @@ RUN apt-get update &&\
 
 
 
-#RUN sudo -iu openwrt bash -c "pwd; git clone git@github.com:jonpry/openwrt_mt7688.git openwrt"
+RUN cp ./SGD-def.config .config && ./scripts/feeds update && ./scripts/feeds install -a &&\
+    make download
 COPY --chown=openwrt:openwrt . /home/openwrt/openwrt/
 
-RUN sudo -iu openwrt bash -c "pwd; ls; cd openwrt; cp ./SGD-def.config .config; ./scripts/feeds update; ./scripts/feeds install -a; make download"
 RUN sudo -iu openwrt bash -c "cd openwrt; make -j16 V=s"
 
