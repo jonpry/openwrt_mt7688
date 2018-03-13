@@ -8,8 +8,6 @@ RUN apt-get update &&\
 
 
 
-RUN cp ./SGD-def.config .config && ./scripts/feeds update && ./scripts/feeds install -a &&\
-    make download
 COPY --chown=openwrt:openwrt . /home/openwrt/openwrt/
 
 RUN sudo -iu openwrt bash -c "pwd; ls; cd openwrt; cp ./SGD-def.config .config; ./scripts/feeds update; ./scripts/feeds install -a; make download"
