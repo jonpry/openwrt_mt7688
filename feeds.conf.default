@@ -1,14 +1,14 @@
-# PACKAGES this points to the latest commit on 3/9/2018 in branch lede-17.01
-src-git packages https://git.openwrt.org/feed/packages.git^0b748a3ac5960225ae35f24f7035ce64732d0d3f
+# PACKAGES this points to the latest commit on 3/13/2018 in branch master
+src-git packages https://git.openwrt.org/feed/packages.git^c57adab9f1609dbd09911bc79b967276aeaa8168
 
-# LUCI (do we use it?) this points to the latest commit on 3/9/2018 in branch lede-17.01
-# src-git luci https://git.openwrt.org/project/luci.git^d09277299c402bbc01c9558048359f12a31a2989
+# LUCI (do we use it?) this points to the latest commit on 3/13/2018 in branch master
+# src-git luci https://git.openwrt.org/project/luci.git^de88c2ee697fe73e406cebc55f59325003cdffcc
 
-# ROUTING this points to the latest commit on 3/9/2018 in branch lede-17.01
-src-git routing https://git.openwrt.org/feed/routing.git^45d25d4dc41b5ab1b5e54d9425fec2ce66bc2f9a
+# ROUTING this points to the latest commit on 3/13/2018 in branch master
+src-git routing https://git.openwrt.org/feed/routing.git^63cae8f571a61ecffb6a1cdad08c551f14b5ae99
 
-# TELEPHONY this points to the latest commit on 3/9/2018 in branch lede-17.01
-src-git telephony https://git.openwrt.org/feed/telephony.git^9aadde80a3856d652aeb690c49ac117ef9053faa
+# TELEPHONY this points to the latest commit on 3/13/2018 in branch master
+src-git telephony https://git.openwrt.org/feed/telephony.git^25bb8873b7c240014a1b720d30c52ed1f13689a9
 
 src-git stel git@github.com:/jonpry/feed
 #src-git video https://github.com/openwrt/video.git
