@@ -5,10 +5,8 @@ node {
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
-        sh 'apt-get update &&\
-    apt-get install -y git-core sudo subversion build-essential gcc-multilib  libssl-dev unzip\
-                       libncurses5-dev zlib1g-dev gawk flex gettext wget unzip python &&\
-    '
+        sh 'apt-get update'
+        sh 'apt-get install -y awk file'
         sh 'cp ./SGD-def.config .config'
         sh './scripts/feeds update'
         sh './scripts/feeds install -a'
