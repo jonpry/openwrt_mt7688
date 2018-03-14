@@ -8,7 +8,7 @@ import time
 def print_help():
     print('Usage : install2board <target pi IP>')
 ### Constants
-GLIBC = True
+GLIBC = False
 if GLIBC:
     SYSIMAGE="bin/targets/ramips/mt76x8-glibc/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
     PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
