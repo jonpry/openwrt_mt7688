@@ -43,8 +43,11 @@ echo "SSH available on {target}"
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    skip_sysupgrade = False
+    if len(sys.argv) < 2:
         print_help()
+    if len(sys.argv) == 3:
+        skip_sysupgrade = "--skip-sysup" == sys.argv[2]
     dev_ip = sys.argv[1]
     scp_target = "root@{}:/tmp".format(dev_ip)
     wait_for_ssh(dev_ip)
@@ -83,16 +86,14 @@ if __name__ == "__main__":
                 exit(1)
             if state == "start":
                 wait_for_ssh(dev_ip)
+                if skip_sysupgrade:
+                    print("Skipping System upgrade because of {}".format(sys.argv[2]))
+                    state = "waiting_before_install"
+                    start_time = time.time()
+                    continue
                 print("copy sending IMAGE file over ssh to {}".format(scp_target))
 
                 call(["scp", "-P", "2022", SYSIMAGE, scp_target])
-                # print ("Read all telnet console before launching command")
-            
-                # c = si.read(1)
-                # while c:
-                #     c= si.read(1)
-                #     print(c)
-                # print("reaad all pending chars")
                 sysimage_file = SYSIMAGE.split("/")[-1]
                 command_ = "sysupgrade /tmp/{}".format(sysimage_file)
                 send_command_on_telnet_stream(so, command_)
@@ -122,7 +123,7 @@ if __name__ == "__main__":
                 strip_ln_telnet = True
                 state = "installing"
             elif state == "installing":
-                if "Configuring" in str_:
+                if "is up to date" in str_ or "Configuring" in str_:
                     time.sleep(2)
                     state = "checking_install"
                     start_time = time.time()
