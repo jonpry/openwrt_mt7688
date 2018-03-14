@@ -8,11 +8,38 @@ import time
 def print_help():
     print('Usage : install2board <target pi IP>')
 ### Constants
-
-SYSIMAGE="bin/targets/ramips/mt76x8/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
-PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
-
+GLIBC = True
+if GLIBC:
+    SYSIMAGE="bin/targets/ramips/mt76x8-glibc/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
+    PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
+else:
+    SYSIMAGE="bin/targets/ramips/mt76x8/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
+    PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
+    
 PORT = 7000
+
+def send_command_on_telnet_stream(stream, command_):
+    print("sending command over telnet: {}".format(command_))
+    stream.write("\n{}\n".format(command_))
+    stream.flush()
+                
+
+def wait_for_ssh(ip):
+
+    script = """#!/usr/bin/bash
+echo "Wait for SSH on {target}"
+while ! nc -z {ip} {port}; do   
+    sleep 0.5 # wait for 1/10 of the second before check again
+    echo "waiting for SSH on {target}"
+done
+echo "SSH available on {target}"
+""".format(ip=ip, port="2022", target="{}:{}".format(ip, "2022"))
+    sf = open("/tmp/wait_ssh.sh", 'w')
+    # print("Executing script\n{}\n\n".format(script))
+    sf.write(script)
+    sf.flush()
+    sf.close()
+    call(["sh", "/tmp/wait_ssh.sh"])
 
 
 if __name__ == "__main__":
@@ -20,6 +47,7 @@ if __name__ == "__main__":
         print_help()
     dev_ip = sys.argv[1]
     scp_target = "root@{}:/tmp".format(dev_ip)
+    wait_for_ssh(dev_ip)
     
     print("Telnet Connect from rapberryPi  {}, port {}".format(dev_ip, PORT))
     state = "start"
@@ -30,8 +58,9 @@ if __name__ == "__main__":
     bufferw = io.BufferedWriter(tfile)
     i2c_read_ok = False
     ril_ok = False
-    rdb_ok = False
+    # rdb_ok = False
     start_time = None
+    app_ckeck_ok = False
     strip_ln_telnet = False
     str_ = ''
     try:
@@ -49,31 +78,47 @@ if __name__ == "__main__":
 
             print("[{}] : {}".format(state, str_))
 
+            if "Port already in use" in str_:
+                print("Close other telnet access to {} before running this script".format(dev_ip))
+                exit(1)
             if state == "start":
+                wait_for_ssh(dev_ip)
                 print("copy sending IMAGE file over ssh to {}".format(scp_target))
+
                 call(["scp", "-P", "2022", SYSIMAGE, scp_target])
+                # print ("Read all telnet console before launching command")
+            
+                # c = si.read(1)
+                # while c:
+                #     c= si.read(1)
+                #     print(c)
+                # print("reaad all pending chars")
                 sysimage_file = SYSIMAGE.split("/")[-1]
-                command_ = "sysupgrade /tmp/{}\n".format(sysimage_file)
-                print(command_)
-                so.write(command_)
-                so.flush()
+                command_ = "sysupgrade /tmp/{}".format(sysimage_file)
+                send_command_on_telnet_stream(so, command_)
                 state = "upgrading"
                 strip_ln_telnet = True
 
             elif state == "upgrading":
 
                 if ("Starting kernel ..." in str_):
-                    print("\n\nUpgrade is done!!")
-                    print("\n\nInstalling application in 15 seconds!!")
-                    state = "install_app"
-                    strip_ln_telnet = False
-                    time.sleep(15)
+                    print("\nUpgrade is done!!")
+                    print("\n\nWaiting to install application!!")
+                    state = "waiting_before_install"
+                    start_time = time.time()
+            elif state == "waiting_before_install":
+                wait_for_ssh(dev_ip)
+                if time.time()-start_time > 120:
+                    print("ERROR: SSH never detecting, quiting install, sysupgrade done, install app failed")
+                    exit(1) 
+                state = "install_app"
+                strip_ln_telnet = False
             elif state == "install_app":
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
                 call(["scp", "-P", "2022", PACKAGE_HELLOWORLD, scp_target])
                 package_file = PACKAGE_HELLOWORLD.split("/")[-1]
-                so.write("opkg install /tmp/{}".format(PACKAGE_HELLOWORLD))
-                so.flush()
+                command_ = "opkg install /tmp/{}".format(package_file)
+                send_command_on_telnet_stream(so,command_)
                 strip_ln_telnet = True
                 state = "installing"
             elif state == "installing":
@@ -81,28 +126,30 @@ if __name__ == "__main__":
                     time.sleep(2)
                     state = "checking_install"
                     start_time = time.time()
+                    command_ = "helloworld"
+                    send_command_on_telnet_stream(so, command_)
                 
             elif state == "checking_install":
-                if time.time() - start_time > 30:
+                if time.time() - start_time > 60:
                     print("We waited for too long, there is a problem")
                     print("RIL: {}".format(ril_ok))
-                    print("RDB: {}".format(rdb_ok))
+                    # print("RDB: {}".format(rdb_ok))
                     print("I2C: {}".format(i2c_read_ok))
-                    exit(1)
-                if "[RDB] [info] Advertising" in str_:
-                    print("RDB advertising ok")
-                    rdb_ok = True
+                    state = "stop_app"
+                # if "[RDB] [info] Advertising" in str_:
+                #     print("RDB advertising ok")
+                #     rdb_ok = True
                 if "[RIL] [info] Deadline in" in str_:
                     print("RIL runing!")
                     ril_ok = True
                 if "[I2C] [info] WT Read" in str_:
                     print("I2C read ok!")
                     i2c_read_ok = True
-                if rdb_ok and ril_ok and i2c_read_ok:
+                if ril_ok and i2c_read_ok:
                     print("All ok!")
-                    state="stop_app"
+                    app_ckeck_ok = True
+                    state = "stop_app"
                 
-
             elif state == "stop_app":
                 
                 print("sending CTRL-C to application")
@@ -116,12 +163,13 @@ if __name__ == "__main__":
                     print("We waited for too long, the app did not quit")
                     exit(1)
                 
-                
                 if "[RIL] [error] Event loop terminated" in str_:
                     print("application quit ok")
-                    state="done"
+                    state = "done"
 
             elif state == "done":
+                if app_ckeck_ok:
+                    print("the app check RIL ({}), I2C ({})".format(ril_ok, i2c_read_ok))
                 exit(0)
     except Exception as e:
         print(e.msg)
