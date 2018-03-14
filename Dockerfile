@@ -11,6 +11,6 @@ RUN apt-get update &&\
 COPY --chown=openwrt:openwrt . /home/openwrt/openwrt/
 COPY --chown=openwrt:openwrt ./temp_ssh /home/openwrt/.ssh
 
-RUN sudo -iu openwrt bash -c "pwd; ls; ls .ssh/; cd openwrt; cp ./SGD-def.config .config; ./scripts/feeds update; ./scripts/feeds install -a; make download"
+RUN sudo -iu openwrt bash -c "pwd; ls; ls .ssh/; cd openwrt; cp ./SGD-def.config .config; ./scripts/feeds update;./scripts/feeds install libpam libcares libgnutls libopenldap libidn libssh2 liblzma libnetsnmp; ./scripts/feeds install -a; make download"
 RUN sudo -iu openwrt bash -c "cd openwrt; cp -R package/feeds/stel/helloworld/files .; make -j1 V=s"
 
