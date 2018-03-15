@@ -6,7 +6,8 @@ import io
 import time
 
 def print_help():
-    print('Usage : install2board <target pi IP> [--skip_sysup]')
+    print("""Usage : sysupgrade_over_telnet <target pi IP> [--skip-sysup]
+    --skip-sysup to skip susupgrade and only run package install""")
 ### Constants
 GLIBC = False
 if GLIBC:
