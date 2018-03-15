@@ -6,7 +6,7 @@ import io
 import time
 
 def print_help():
-    print('Usage : install2board <target pi IP>')
+    print('Usage : install2board <target pi IP> [--skip_sysup]')
 ### Constants
 GLIBC = False
 if GLIBC:
