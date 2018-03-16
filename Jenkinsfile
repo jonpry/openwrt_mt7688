@@ -1,10 +1,14 @@
 node {
     def commitHash = checkout(scm).GIT_COMMIT
     def app
-
+    statge('Clean old docker images') {
+        echo 'clean old docker images'
+        sh 'docker system prune --force'
+    }
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
+        
         sh 'cp -R /var/jenkins_home/.ssh ./temp_ssh'
         app = docker.build("acourdavault/openwrt")
     }
