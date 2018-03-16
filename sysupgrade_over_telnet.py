@@ -119,6 +119,8 @@ if __name__ == "__main__":
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
                 call(["scp", "-P", "2022", PACKAGE_HELLOWORLD, scp_target])
                 package_file = PACKAGE_HELLOWORLD.split("/")[-1]
+                command_ = "opkg remove helloworld"
+                send_command_on_telnet_stream(so, command_)
                 command_ = "opkg install /tmp/{}".format(package_file)
                 send_command_on_telnet_stream(so,command_)
                 strip_ln_telnet = True
