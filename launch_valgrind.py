@@ -108,7 +108,7 @@ if __name__ == "__main__":
                 call(["ssh", "-p", "2022", ssh_target, "rm /mnt/debian/mnt/helloworld"])
                 call(["ssh" ,"-p", "2022", ssh_target, "cp /tmp/helloworld /mnt/debian/mnt/; ls /mnt/debian/mnt/"])
                 call(["ssh", "-p", "2022", ssh_target, "rm /mnt/debian/mnt/valgrind.log"])
-                call(["ssh", "-p", "2022", ssh_target, "swapon myswap"])
+                call(["ssh", "-p", "2022", ssh_target, "swapon /mnt/myswap"])
                 state = "debian_launch"
  
             elif state == "debian_launch":
