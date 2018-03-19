@@ -10,7 +10,7 @@ def print_help():
     print("""Usage : launch_valgrind.py <target pi IP>""")
 
 ### Constants
-HELLOWORLD_PATH = "./packages/feeds/stel/helloworld/src/"
+HELLOWORLD_PATH = "./package/feeds/stel/helloworld/src/"
 
 PORT = 7000
 
@@ -102,9 +102,10 @@ if __name__ == "__main__":
 
             elif state == "copy":
                 call(["scp", "-P", "2022", bin_path, scp_target])
-                call(["ssh" ,"-p", "2022", ssh_target, "cp /tmp/helloworld /mnt/debian/mnt/; ls /mnt/debian/mnt/")
-            elif state == "debian_launch":
+                call(["ssh" ,"-p", "2022", ssh_target, "cp /tmp/helloworld /mnt/debian/mnt/; ls /mnt/debian/mnt/"])
+                state = "debian_launch"
                 strip_ln_telnet = True
+            elif state == "debian_launch":
                 send_command_on_telnet_stream(so, "cd /mnt")
                 send_command_on_telnet_stream(so, "sh ./launch.sh")
                 send_command_on_telnet_stream(so, "ls ./mnt/")
@@ -127,6 +128,7 @@ if __name__ == "__main__":
                     so.flush()
                     state = "retrievelog"
             elif state == "retrievelog":
+                strip_ln_telnet = False
                 print("retrieving log")
                 call(["scp", "-P", "2022", ssh_target+":/mnt/debian/mnt/valgrind.log", "./"])
                 state = "done"
