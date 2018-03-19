@@ -90,8 +90,11 @@ if __name__ == "__main__":
                 
                 os.chdir(HELLOWORLD_PATH)
                 print("deleting previous binaries")
-                call(["rm", "*.o"])
-                call(["rm", "helloworld"])
+                call(["pwd"])
+                call(["ls", "./*.o", "./helloworld"])
+                call(["rm", "./*.o", "./helloworld"])
+                call(["ls"])
+                
                 print("building")
                 call(["sh","./cross.sh"])
                 os.chdir(root_path)
@@ -102,10 +105,13 @@ if __name__ == "__main__":
 
             elif state == "copy":
                 call(["scp", "-P", "2022", bin_path, scp_target])
+                call(["ssh", "-p", "2022", ssh_target, "rm /mnt/debian/mnt/helloworld"])
                 call(["ssh" ,"-p", "2022", ssh_target, "cp /tmp/helloworld /mnt/debian/mnt/; ls /mnt/debian/mnt/"])
+                call(["ssh", "-p", "2022", ssh_target, "rm /mnt/debian/mnt/valgrind.log"])
                 state = "debian_launch"
-                strip_ln_telnet = True
+ 
             elif state == "debian_launch":
+                strip_ln_telnet = True
                 send_command_on_telnet_stream(so, "cd /mnt")
                 send_command_on_telnet_stream(so, "sh ./launch.sh")
                 send_command_on_telnet_stream(so, "ls ./mnt/")
@@ -120,16 +126,19 @@ if __name__ == "__main__":
                             
                             if len(str_) == 0:
                                 continue
+                        print("[{}]: {}".format(state, str_))
                 except KeyboardInterrupt as e:
                     print("Programm aborted by user, quiting valgrind")
                         
                     print("sending CTRL-C to application")
                     so.write('\x03')
                     so.flush()
+                    send_command_on_telnet_stream(so, "exit")
                     state = "retrievelog"
             elif state == "retrievelog":
                 strip_ln_telnet = False
                 print("retrieving log")
+                call(["rm", "./valgrind.log"])
                 call(["scp", "-P", "2022", ssh_target+":/mnt/debian/mnt/valgrind.log", "./"])
                 state = "done"
             elif state == "done":
