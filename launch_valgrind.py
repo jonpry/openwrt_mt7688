@@ -91,11 +91,12 @@ if __name__ == "__main__":
                 print("deleting previous binaries")
                 call(["ls", HELLOWORLD_PATH])
                 call(["rm", bin_path])
-                call(["rm", HELLOWORLD_PATH+"*.o"])
+                
                 call(["ls", HELLOWORLD_PATH])
                 
                 print("building")
                 os.chdir(HELLOWORLD_PATH)
+                call(["make", "-f", "Makefile.debian", "clean"])
                 call(["sh", "./cross.sh"])
                 os.chdir(root_path)
                 if not os.path.isfile(bin_path):
@@ -119,7 +120,7 @@ if __name__ == "__main__":
                 state = "valgrind"
             elif state == "valgrind":
                 try:
-                    send_command_on_telnet_stream(so, "valgrind --tool=memcheck --leak-check=full --time-stamp=yes --track-origins=yes --log-file=./mnt/valgrind.log -v ./mnt/helloworld")
+                    send_command_on_telnet_stream(so, "valgrind --tool=memcheck --leak-check=full --log-file=./mnt/valgrind.log -v ./mnt/helloworld")
                     
                     while True:
                         if strip_ln_telnet:
