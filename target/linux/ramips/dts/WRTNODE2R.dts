@@ -70,6 +70,14 @@
 		phy-names = "usb";
 	};
 
+	ws2812b@10000600 {
+		#size-cells = <0x1>;
+		#address-cells = <0x1>;
+		reg = <0x10000600 0x100>;
+		compatible = "mtk,ws2812b-led";
+		pin = <0x26>;
+	};
+
 	palmbus@10000000 {
 		#size-cells = <0x1>;
 		#address-cells = <0x1>;
