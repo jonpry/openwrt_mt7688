@@ -87,7 +87,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=lv,
                         format='%(name)s [%(levelname)s] - %(message)s')
 
-    loffing("Targeting {}".format(dev_ip))
+    logging.info("Targeting {}".format(dev_ip))
     logging.info("Updating Application with {}".format(appipk))
     if not skip_sysupgrade:
         logging.info("updating BIN with {}".format(imagebin))
