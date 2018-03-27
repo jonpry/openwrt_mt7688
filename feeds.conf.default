@@ -2,7 +2,7 @@
 src-git packages https://git.openwrt.org/feed/packages.git^c57adab9f1609dbd09911bc79b967276aeaa8168
 
 # LUCI (do we use it?) this points to the latest commit on 3/13/2018 in branch master
-# src-git luci https://git.openwrt.org/project/luci.git^de88c2ee697fe73e406cebc55f59325003cdffcc
+src-git luci https://git.openwrt.org/project/luci.git^de88c2ee697fe73e406cebc55f59325003cdffcc
 
 # ROUTING this points to the latest commit on 3/13/2018 in branch master
 src-git routing https://git.openwrt.org/feed/routing.git^63cae8f571a61ecffb6a1cdad08c551f14b5ae99
