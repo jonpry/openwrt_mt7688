@@ -27,9 +27,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def print_help():
-    print("""Usage : sysupgrade_over_telnet <target pi IP> [--skip-sysup]
-    --skip-sysup to skip susupgrade and only run package install""")
 ### Constants
 GLIBC = False
 if GLIBC:
