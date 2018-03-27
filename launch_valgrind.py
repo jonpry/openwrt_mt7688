@@ -90,12 +90,11 @@ if __name__ == "__main__":
                 
                 print("deleting previous binaries")
                 call(["ls", HELLOWORLD_PATH])
-                call(["rm", bin_path])
-                call(["rm", HELLOWORLD_PATH+"*.o"])
+                
+                os.chdir(HELLOWORLD_PATH)
                 call(["ls", HELLOWORLD_PATH])
                 
                 print("building")
-                os.chdir(HELLOWORLD_PATH)
                 call(["sh", "./cross.sh"])
                 os.chdir(root_path)
                 if not os.path.isfile(bin_path):
