@@ -2,7 +2,7 @@
    Returns the Virtual IP of a device in STDERR 
    to chain with bash use `python3 get_ip_ssh.py 2> my_script`
 Usage:
-    sysupgrade_over_telnet.py [--verbose | --quiet] [--logfile LOGFILE] <ip> [--skip-sysup] [--bin BINFILE] [--ipk IPKFILE]
+    sysupgrade_over_telnet.py [--verbose | --quiet] [--logfile FILE] <ip> [--skip-sysup] [--bin BINFILE] [--ipk IPKFILE]
     sysupgrade_over_telnet.py (-h | --help)
     sysupgrade_over_telnet.py --version
 
