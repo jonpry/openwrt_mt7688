@@ -62,22 +62,18 @@ echo "SSH available on {target}"
     call(["sh", "/tmp/wait_ssh.sh"])
 
 
-
-
-logger = logging.getLogger(__name__)
-
 if __name__ == '__main__':
     arguments = docopt(__doc__, version='STEL get connection info V0.^')
 
     print(arguments)
     dev_ip = arguments['<ip>']
-    logfile = arguments['LOGFILE']
+    logfile = arguments['--logfile']
     skip_sysupgrade = arguments['--skip-sysup']
-    appipk = arguments['IPKFILE']
-    imagebin = arguments['BINFILE']
-    if appipk is None:
+    appipk = arguments['--ipk']
+    imagebin = arguments['--bin']
+    if not appipk:
         appipk = PACKAGE_HELLOWORLD
-    if imagebin is None:
+    if not imagebin:
         imagebin = SYSIMAGE
     lv = logging.INFO
     if arguments['--verbose']:
