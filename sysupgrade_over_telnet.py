@@ -73,8 +73,12 @@ if __name__ == '__main__':
     imagebin = arguments['--bin']
     if not appipk:
         appipk = PACKAGE_HELLOWORLD
+    else:
+        appipk = arguments['IPKFILE']
     if not imagebin:
         imagebin = SYSIMAGE
+    else:
+        imagebin = arguments['BINFILE']
     lv = logging.INFO
     if arguments['--verbose']:
         lv = logging.DEBUG
@@ -83,6 +87,12 @@ if __name__ == '__main__':
     logging.basicConfig(level=lv,
                         format='%(name)s [%(levelname)s] - %(message)s')
 
+    loffing("Targeting {}".format(dev_ip))
+    logging.info("Updating Application with {}".format(appipk))
+    if not skip_sysupgrade:
+        logging.info("updating BIN with {}".format(imagebin))
+    logging.info("starting in 3 sec...")
+    time.sleep(3)
 
     scp_target = "root@{}:/tmp".format(dev_ip)
     wait_for_ssh(dev_ip)
