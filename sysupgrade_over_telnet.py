@@ -1,13 +1,32 @@
+"""sysupgrade_over_telnet
+   Returns the Virtual IP of a device in STDERR 
+   to chain with bash use `python3 get_ip_ssh.py 2> my_script`
+Usage:
+    sysupgrade_over_telnet.py [--verbose | --quiet] [--logfile FILE] <ip> [--skip-sysup] [--bin BINFILE] [--ipk IPKFILE]
+    sysupgrade_over_telnet.py (-h | --help)
+    sysupgrade_over_telnet.py --version
+
+Options:
+    -h --help         Show this screen.
+    --version         Show version.
+    --logfile FILE    specify output file [default: ./log.txt]
+    --skip-sysup      To only apply helloworld update
+    --bin             Specify BIN file to use (ignored if --skip-sysup)
+    --ipk             Specify IPK file
+    --verbose         Verbose (logger level is debug, instead of info)
+    --quiet           Verbose (logger level is warning, instead of info)
+"""
 #!/usr/bin/python3
 from telnetlib import Telnet
 import sys
 from subprocess import call
 import io
 import time
+from docopt import docopt
+import logging
 
-def print_help():
-    print("""Usage : sysupgrade_over_telnet <target pi IP> [--skip-sysup]
-    --skip-sysup to skip susupgrade and only run package install""")
+logger = logging.getLogger(__name__)
+
 ### Constants
 GLIBC = False
 if GLIBC:
@@ -43,13 +62,38 @@ echo "SSH available on {target}"
     call(["sh", "/tmp/wait_ssh.sh"])
 
 
-if __name__ == "__main__":
-    skip_sysupgrade = False
-    if len(sys.argv) < 2:
-        print_help()
-    if len(sys.argv) == 3:
-        skip_sysupgrade = "--skip-sysup" == sys.argv[2]
-    dev_ip = sys.argv[1]
+if __name__ == '__main__':
+    arguments = docopt(__doc__, version='STEL get connection info V0.^')
+
+    print(arguments)
+    dev_ip = arguments['<ip>']
+    logfile = arguments['--logfile']
+    skip_sysupgrade = arguments['--skip-sysup']
+    appipk = arguments['--ipk']
+    imagebin = arguments['--bin']
+    if not appipk:
+        appipk = PACKAGE_HELLOWORLD
+    else:
+        appipk = arguments['IPKFILE']
+    if not imagebin:
+        imagebin = SYSIMAGE
+    else:
+        imagebin = arguments['BINFILE']
+    lv = logging.INFO
+    if arguments['--verbose']:
+        lv = logging.DEBUG
+    elif arguments['--quiet']:
+        lv = logging.WARNING
+    logging.basicConfig(level=lv,
+                        format='%(name)s [%(levelname)s] - %(message)s')
+
+    logging.info("Targeting {}".format(dev_ip))
+    logging.info("Updating Application with {}".format(appipk))
+    if not skip_sysupgrade:
+        logging.info("updating BIN with {}".format(imagebin))
+    logging.info("starting in 3 sec...")
+    time.sleep(3)
+
     scp_target = "root@{}:/tmp".format(dev_ip)
     wait_for_ssh(dev_ip)
     
@@ -94,8 +138,8 @@ if __name__ == "__main__":
                     continue
                 print("copy sending IMAGE file over ssh to {}".format(scp_target))
 
-                call(["scp", "-P", "2022", SYSIMAGE, scp_target])
-                sysimage_file = SYSIMAGE.split("/")[-1]
+                call(["scp", "-P", "2022", imagebin, scp_target])
+                sysimage_file = imagebin.split("/")[-1]
                 command_ = "sysupgrade /tmp/{}".format(sysimage_file)
                 send_command_on_telnet_stream(so, command_)
                 state = "upgrading"
@@ -117,8 +161,8 @@ if __name__ == "__main__":
                 strip_ln_telnet = False
             elif state == "install_app":
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
-                call(["scp", "-P", "2022", PACKAGE_HELLOWORLD, scp_target])
-                package_file = PACKAGE_HELLOWORLD.split("/")[-1]
+                call(["scp", "-P", "2022", appipk, scp_target])
+                package_file = appipk.split("/")[-1]
                 command_ = "opkg remove helloworld"
                 send_command_on_telnet_stream(so, command_)
                 command_ = "opkg install /tmp/{}".format(package_file)
