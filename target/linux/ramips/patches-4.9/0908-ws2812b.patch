@@ -1,0 +1,577 @@
+diff --git a/drivers/gpio/gpio-mt7621.c b/drivers/gpio/gpio-mt7621.c
+index 9ee4a0ea..67515946 100644
+--- a/drivers/gpio/gpio-mt7621.c
++++ b/drivers/gpio/gpio-mt7621.c
+@@ -47,6 +47,8 @@ struct mtk_gc {
+ 	u32 falling;
+ } *gc_map[MTK_MAX_BANK];
+ 
++EXPORT_SYMBOL(gc_map);
++
+ static inline struct mtk_gc
+ *to_mediatek_gpio(struct gpio_chip *chip)
+ {
+diff --git a/drivers/leds/Kconfig b/drivers/leds/Kconfig
+index 7a628c65..b1883dda 100644
+--- a/drivers/leds/Kconfig
++++ b/drivers/leds/Kconfig
+@@ -58,6 +58,12 @@ config LEDS_BCM6328
+ 	  This option enables support for LEDs connected to the BCM6328
+ 	  LED HW controller accessed via MMIO registers.
+ 
++config LEDS_WS2812B
++	tristate "LCD Backlight driver for WS2812B"
++	depends on LEDS_CLASS
++	help
++	  This option enables support for the WS2812B
++
+ config LEDS_BCM6358
+ 	tristate "LED Support for Broadcom BCM6358"
+ 	depends on LEDS_CLASS
+diff --git a/drivers/leds/Makefile b/drivers/leds/Makefile
+index 6273d7e2..69b20373 100644
+--- a/drivers/leds/Makefile
++++ b/drivers/leds/Makefile
+@@ -71,6 +71,7 @@ obj-$(CONFIG_LEDS_IS31FL319X)		+= leds-is31fl319x.o
+ obj-$(CONFIG_LEDS_IS31FL32XX)		+= leds-is31fl32xx.o
+ obj-$(CONFIG_LEDS_PM8058)		+= leds-pm8058.o
+ obj-$(CONFIG_LEDS_MLXCPLD)		+= leds-mlxcpld.o
++obj-$(CONFIG_LEDS_WS2812B)		+= leds-ws2812b.o
+ 
+ # LED SPI Drivers
+ obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o
+diff --git a/drivers/leds/leds-ws2812b.c b/drivers/leds/leds-ws2812b.c
+new file mode 100644
+index 00000000..9b39ed83
+--- /dev/null
++++ b/drivers/leds/leds-ws2812b.c
+@@ -0,0 +1,485 @@
++/*
++ * ws2812b.c - platform data structure for WS2812B NeoPixel LEDs
++ *
++ * This driver supports BCM2835 platform, other platforms need to implement
++ * their platform-specific codes.
++ *
++ * Based on jazzycamel's idea that use PWM to generate accurate timing
++ * jazzycamel's code can be found here: github.com/jazzycamel/ws28128-rpi
++ *
++ * Copyright (C) 2016 hyzhang <hyzhang7@msn.com>
++ *
++ * 
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ */
++
++/* Some configurations */ 
++#define DEBUG
++#define NO_DMA_FOR_WS2812B
++#define MAX_NUM_OF_LEDS_PER_WS2812B_MODULE   1
++
++#include <linux/leds.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/spinlock.h>
++#include <linux/io.h>
++#include <linux/delay.h>
++#include <linux/mutex.h>
++#include <linux/workqueue.h>
++#include <linux/leds-ws2812b.h>
++#include <linux/of_irq.h>
++#include <linux/gpio.h>
++
++
++/* Some globle variables*/
++static volatile  uint8_t brightness[3];
++static spinlock_t ws2812b__lock;
++static struct ws2812b_leds_device * ws2812b_device;
++ 
++/* Pin settings for Rpi */
++#define DAT_PIN_FNC_MSK    0b010      // Func. 5 on pin18 is pwm0
++
++static void* gpioBaseAddr;
++
++#define BANK(x) (x/32)
++#define PIN(x) (x%32)
++
++#define GPIO_CTRL(x) ((volatile u32*)(gpioBaseAddr+x*4))
++#define GPIO_SET(x) ((volatile u32*)(gpioBaseAddr+0x30+x*4))
++#define GPIO_CLR(x) ((volatile u32*)(gpioBaseAddr+0x40+x*4))
++
++#define GPFSEL_BASE        (gpioBaseAddr+0x00)
++#define GPFCLR_BASE        (gpioBaseAddr+0x28)
++
++#define GPIO_BASE 0x10000600
++
++#define MTK_MAX_BANK		3
++
++extern struct mtk_gc {
++	struct gpio_chip chip;
++	spinlock_t lock;  
++	int bank;
++	u32 rising;
++	u32 falling;
++} *gc_map[MTK_MAX_BANK];
++
++static const int ovhead = 130;
++
++static int ws2812_led_init_gpioPin(void)
++{
++	unsigned long old, flags;
++	int bank = BANK(ws2812b_device->dataPin);
++	int pin = PIN(ws2812b_device->dataPin);
++	
++	spin_lock_irqsave(&gc_map[bank]->lock, flags);
++	rmb();	
++	old=readl(GPIO_CTRL(bank)); 
++	old |= 1 << pin;
++	writel(old, GPIO_CTRL(bank) );  // Set pin as output
++
++	spin_unlock_irqrestore	(&gc_map[bank]->lock, flags);
++
++	return 0;
++}
++
++static int inline ws2812b_led_sendBit(volatile u32 *set, volatile u32* clr, int pin, int v)
++{
++   writel(1<<pin, set); 
++   ndelay((v?ws2812b_device->l1:ws2812b_device->l0)-ovhead);
++   writel(1<<pin, clr );  
++   ndelay((v?ws2812b_device->h1:ws2812b_device->h0)-ovhead);
++
++   return 0;
++}
++
++static int inline ws2812b_led_sendRst(void)
++{
++	int bank = BANK(ws2812b_device->dataPin);
++	int pin = PIN(ws2812b_device->dataPin);
++	writel(1<<pin, GPIO_CLR(bank) );  
++	udelay(50);
++	return 0;
++}
++
++static int inline ws2812b_go_idle(void){
++        int bank = BANK(ws2812b_device->dataPin);
++        int pin = PIN(ws2812b_device->dataPin);
++        writel(1<<pin, GPIO_SET(bank) );  
++        return 0;
++}
++
++int ws2812b_led_sendData(u32 dat, u32 bits, bool nop)
++{
++	int i,ret;
++	int bank = BANK(ws2812b_device->dataPin);
++	int pin = PIN(ws2812b_device->dataPin);
++	
++        volatile u32* set = GPIO_SET(bank);
++        volatile u32* clr = GPIO_CLR(bank);
++
++        if(nop){
++            set = clr;
++        }
++	
++	for (i=0;i<bits;i++)
++	{
++		ret=ws2812b_led_sendBit(set,clr,pin,(dat&(1<<(bits-1)))?1:0);
++		if (ret<0)
++		{
++			return ret;
++		}		
++		dat<<=1;
++	}
++	return 0;
++
++}
++
++/* To port to a new platform, rewrite these two functions below. */
++static inline int ws2812b_led_update(void)
++{
++	unsigned long flags;
++	int i,ret;
++   	u32 data=0;
++	u32 bits=0;
++	/* this spin lock prevent task scheduling thus prevent buffer underflow*/
++	spin_lock_irqsave(&ws2812b__lock,flags);
++
++	ret=ws2812b_led_sendRst();
++	if (ret<0)
++	{
++		spin_unlock_irqrestore(&ws2812b__lock,flags);
++		return ret;
++	}
++	ret=ws2812b_led_sendData(0,8,true);
++	for (i=0;i<(ws2812b_device->numberOfLEDs);i++)
++	{
++		data <<=8;
++		data |= ws2812b_device->led[i].brightness;
++		bits +=8;
++        }
++	
++	ret=ws2812b_led_sendData(data,bits,false);
++	if (ret<0)
++	{
++		spin_unlock_irqrestore(&ws2812b__lock,flags);
++		return ret;
++	}
++        //ws2812b_go_idle();
++
++	spin_unlock_irqrestore(&ws2812b__lock,flags);
++	return 0;
++}
++static int ws2812b_led_init_hw(struct platform_device * pdev)
++{
++	int ret;
++	
++	dev_dbg(&pdev->dev,"WS2812B HW_Init \n");
++
++	/* Set data pin as output*/
++	dev_dbg(&pdev->dev,"WS2812B set pin func.\n");	
++	ret=ws2812_led_init_gpioPin();
++	if (ret<0)
++	{
++		return ret;
++	}
++
++	return 0;
++	
++}
++
++
++static void ws2812b_led_work(struct work_struct *work)
++{
++	
++	ws2812b_led_update();
++
++}
++
++static void ws2812b_led_set(struct led_classdev *cdev, enum led_brightness bvalue)
++{
++	struct ws2812b_led *led = container_of(cdev, struct ws2812b_led, ldev);
++	
++	
++	led->brightness = bvalue;
++	
++	//schedule_work(&ws2812b_device->work);
++	queue_work(ws2812b_device->wq,&ws2812b_device->work);
++}
++
++
++static enum led_brightness ws2812b_led_get(struct led_classdev *cdev)
++{
++	struct ws2812b_led *led = container_of(cdev, struct ws2812b_led, ldev);
++	return led->brightness;
++}
++
++
++static int ws2812b_led_init_res(struct platform_device * pdev)
++{
++	struct ws2812b_led * ledArray; 
++	
++	char * ledNames;
++	int i, dataPin;
++	struct device_node *np = pdev->dev.of_node;
++	const __be32 *id = of_get_property(np, "pin", NULL);
++
++	dev_dbg(&pdev->dev,"WS2812B Resource Init.\n");
++        if(IS_ERR(id))
++          return -EINVAL;
++
++	/* Get register base address */
++	gpioBaseAddr = ioremap_nocache(0x10000600, 0x300);
++	if (IS_ERR(gpioBaseAddr))
++		return PTR_ERR(gpioBaseAddr);
++        dataPin = be32_to_cpu(*id);
++	dev_dbg(&pdev->dev,"WS2812B Register Base Address:\n dpin: %d, bank %d, pin %d\ngpio %p, ctrl %p, set %p, clr %p\n",
++		dataPin,BANK(dataPin),PIN(dataPin),gpioBaseAddr,GPIO_CTRL(BANK(dataPin)), GPIO_SET(BANK(dataPin)), GPIO_CLR(BANK(dataPin)));
++     
++	/* Initialize resources*/
++	spin_lock_init(&ws2812b__lock);
++
++	/* Allocate Memory*/
++	/* 1. Allocate memory for led structures and initialize them */
++	ledArray=(struct ws2812b_led *)devm_kzalloc(&pdev->dev,3*MAX_NUM_OF_LEDS_PER_WS2812B_MODULE*sizeof(struct ws2812b_led),GFP_KERNEL);
++	if (ledArray==NULL)
++	{
++		return -ENOMEM;
++	}
++	for(i=0;i<3*MAX_NUM_OF_LEDS_PER_WS2812B_MODULE;i++)
++	{
++		ledArray[i].index=i;
++	}
++	/* 2. Allocate memory for LED names: the leds under/sys/class/leds/ will look like "ws2812b-red1", "ws2812b-green7", etc. */
++	ledNames=(char *)devm_kzalloc(&pdev->dev,3*MAX_NUM_OF_LEDS_PER_WS2812B_MODULE*sizeof(char)*20,GFP_KERNEL);
++	if (ledNames==NULL)
++	{
++		return -ENOMEM;
++	}	
++	/* 3. Allocate memory for device structure and initialize it */
++	ws2812b_device=(struct ws2812b_leds_device *)devm_kzalloc(&pdev->dev,sizeof(struct ws2812b_leds_device),GFP_KERNEL);
++	if (ws2812b_device==NULL)
++	{
++		return -ENOMEM;
++	}
++	ws2812b_device->led = ledArray;
++	ws2812b_device->dataPin = dataPin;
++	ws2812b_device->dataPinFuncMsk = DAT_PIN_FNC_MSK;
++	ws2812b_device->numberOfLEDs = 3*MAX_NUM_OF_LEDS_PER_WS2812B_MODULE;  
++
++   	ws2812b_device->l0 = 500;
++	ws2812b_device->l1 = 1200;
++	ws2812b_device->h0 = 2000;
++	ws2812b_device->h1 = 1300;
++
++   /* 4. Create a work queue for updating the brightness values to led chips */	
++	ws2812b_device->wq=create_singlethread_workqueue("ws2812b-wq");
++	INIT_WORK(&ws2812b_device->work, ws2812b_led_work);
++	
++	/* Initialize LED names*/
++	for (i=0;i<(ws2812b_device->numberOfLEDs);i++)
++	{
++		if((i%3)==0)
++		{
++			snprintf(&(ledNames[20*i]),20,"ws2812b-green-%d",i/3);
++		}
++		else if((i%3)==1)
++		{
++			snprintf(&(ledNames[20*i]),20,"ws2812b-red-%d",i/3);
++		}
++		else
++		{
++			snprintf(&(ledNames[20*i]),20,"ws2812b-blue-%d",i/3);
++		}
++	}
++	/* Initialize led_classdev*/
++	for (i=0;i<(ws2812b_device->numberOfLEDs);i++)
++	{
++		ws2812b_device->led[i].ldev.name = &(ledNames[20*i]);
++		ws2812b_device->led[i].ldev.default_trigger = "none";
++		ws2812b_device->led[i].ldev.brightness_set = ws2812b_led_set;
++		ws2812b_device->led[i].ldev.brightness_get = ws2812b_led_get;
++	}
++
++	return 0;
++}
++
++static ssize_t ws2812b_store_uprop(u32* prop,
++				     const char *buf, size_t len){
++	unsigned long v;
++	int ret;
++
++	ret = kstrtoul(buf, 0, &v);
++	if (ret)
++		return ret;
++
++        *prop = v;
++
++	return len;
++}
++
++static ssize_t ws2812b_store_l0(struct device *dev,
++				     struct device_attribute *attr,
++				     const char *buf, size_t len){
++	return ws2812b_store_uprop(&ws2812b_device->l0,buf,len);
++}
++
++static ssize_t ws2812b_store_l1(struct device *dev,
++				     struct device_attribute *attr,
++				     const char *buf, size_t len){
++	return ws2812b_store_uprop(&ws2812b_device->l1,buf,len);
++}
++
++static ssize_t ws2812b_store_h0(struct device *dev,
++				     struct device_attribute *attr,
++				     const char *buf, size_t len){
++	return ws2812b_store_uprop(&ws2812b_device->h0,buf,len);
++}
++
++static ssize_t ws2812b_store_h1(struct device *dev,
++				     struct device_attribute *attr,
++				     const char *buf, size_t len){
++	return ws2812b_store_uprop(&ws2812b_device->h1,buf,len);
++}
++
++static ssize_t ws2812b_store_rgb(struct device *dev,
++				     struct device_attribute *attr,
++				     const char *buf, size_t len){
++
++	unsigned long rgb;
++	int ret;
++
++	ret = kstrtoul(buf, 0, &rgb);
++	if (ret)
++		return ret;
++    
++        //GRB order
++	ws2812b_device->led[0].brightness = (rgb >> 8) & 0xFF;
++	ws2812b_device->led[1].brightness = (rgb >> 16) & 0xFF;
++	ws2812b_device->led[2].brightness = (rgb >> 0) & 0xFF;
++	
++        queue_work(ws2812b_device->wq,&ws2812b_device->work);
++
++	return len;
++}
++#define WS2812B_DEV_ATTR_WO(name, store)		\
++	DEVICE_ATTR(name, S_IWUSR, NULL, store)
++
++
++static WS2812B_DEV_ATTR_WO(rgb, ws2812b_store_rgb);
++static WS2812B_DEV_ATTR_WO(l0, ws2812b_store_l0);
++static WS2812B_DEV_ATTR_WO(l1, ws2812b_store_l1);
++static WS2812B_DEV_ATTR_WO(h0, ws2812b_store_h0);
++static WS2812B_DEV_ATTR_WO(h1, ws2812b_store_h1);
++
++static struct attribute *ws2812b_attributes[] = {
++	&dev_attr_rgb.attr,
++        &dev_attr_l0.attr,
++        &dev_attr_l1.attr,
++        &dev_attr_h0.attr,
++        &dev_attr_h1.attr,
++	NULL,
++};
++
++static const struct attribute_group ws2812b_group = {
++	.attrs = ws2812b_attributes,
++};
++
++static int ws2812b_led_register(struct platform_device * pdev)
++{
++	int i,ret;
++		
++	dev_dbg(&pdev->dev,"WS2812B Register.\n");
++	sysfs_create_group(&pdev->dev.kobj, &ws2812b_group);
++
++	for (i=0;i<(ws2812b_device->numberOfLEDs);i++)
++	{
++		ret=devm_led_classdev_register(&pdev->dev,&(ws2812b_device->led[i].ldev));
++		if (ret<0)
++		{
++			return ret;
++		}
++	}
++	return 0;
++}
++static void ws2812b_led_unregister(struct platform_device * pdev)
++{
++	int i;
++	dev_dbg(&pdev->dev,"WS2812B Un-register.\n");
++
++	for (i=0;i<(ws2812b_device->numberOfLEDs);i++)
++	{
++		devm_led_classdev_unregister(&pdev->dev,&(ws2812b_device->led[i].ldev));
++	}
++	cancel_work_sync(&ws2812b_device->work);
++
++	flush_workqueue(ws2812b_device->wq);
++	destroy_workqueue(ws2812b_device->wq);
++}
++static int ws2812b_led_probe(struct platform_device * pdev)
++{
++	int ret=0;
++	
++	dev_dbg(&pdev->dev,"WS2812B Probe Func.\n");
++	
++	if (MAX_NUM_OF_LEDS_PER_WS2812B_MODULE<=0)
++	{
++		return -ENODEV;
++	}
++
++	/* Initialize system resource */
++	ret=ws2812b_led_init_res(pdev);
++	if (ret<0)
++	{
++		return ret;
++	}
++
++	/* Initialize hardware*/
++	ret = ws2812b_led_init_hw( pdev);
++	if (ret<0)
++	{
++		return ret;
++	}
++
++	/* register LEDs to system */
++	ret=ws2812b_led_register(pdev);
++	if (ret<0)
++	{
++		return ret;
++	}
++		
++	return 0; 
++}
++static int ws2812b_led_remove(struct platform_device * pdev)
++{
++	ws2812b_led_unregister(pdev);
++	return 0;
++}
++
++static const struct of_device_id mediatek_gpio_match[] = {
++	{ .compatible = "mtk,ws2812b-led" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, mediatek_gpio_match);
++
++static struct platform_driver ws2812b_led_driver = 
++{
++	.probe  =  ws2812b_led_probe,
++	.remove =  ws2812b_led_remove,
++	.driver = 
++	{
++		.name = "ws2812b-led",
++		.owner= THIS_MODULE,
++		.of_match_table = mediatek_gpio_match,
++	},
++};
++
++static int ws2812b_led_init(void)
++{
++	return platform_driver_register(&ws2812b_led_driver);
++}
++
++module_init(ws2812b_led_init);
+diff --git a/include/linux/leds-ws2812b.h b/include/linux/leds-ws2812b.h
+new file mode 100644
+index 00000000..a9afc174
+--- /dev/null
++++ b/include/linux/leds-ws2812b.h
+@@ -0,0 +1,38 @@
++/*
++ * ws2812b.h - platform data structure for WS2812B NeoPixel LEDs
++ *
++ * Copyright (C) 2016 hyzhang <hyzhang7@msn.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ */
++
++#ifndef __LINUX_LED_WS2812B_H__
++#define __LINUX_LED_WS2812B_H__
++
++#include <linux/leds.h>
++#include <linux/workqueue.h>
++
++
++
++struct ws2812b_led {
++	int index;
++	struct led_classdev ldev;
++	uint8_t brightness;
++};
++
++struct ws2812b_leds_device {
++	struct ws2812b_led * led;
++	struct work_struct work;
++	struct workqueue_struct *wq;
++	int dataPin;
++	int dataPinFuncMsk;
++	int numberOfLEDs;
++        u32 l0, l1;
++	u32 h0, h1;
++};
++
++#endif /* __LINUX_LED_WS2812B_H__ */
++
