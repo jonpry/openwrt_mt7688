@@ -2,7 +2,7 @@
    Returns the Virtual IP of a device in STDERR 
    to chain with bash use `python3 get_ip_ssh.py 2> my_script`
 Usage:
-    sysupgrade_over_telnet.py [--verbose | --quiet] [--logfile FILE] <ip> [--skip-sysup] [--bin BINFILE] [--ipk IPKFILE]
+    sysupgrade_over_telnet.py [--verbose | --quiet] [--logfile FILE] <ip> [--skip-sysup] [--bin BINFILE] [--ipk IPKFILE] [--skip-test]
     sysupgrade_over_telnet.py (-h | --help)
     sysupgrade_over_telnet.py --version
 
@@ -11,6 +11,7 @@ Options:
     --version         Show version.
     --logfile FILE    specify output file [default: ./log.txt]
     --skip-sysup      To only apply helloworld update
+    --skip-test       To skip tests after app install
     --bin             Specify BIN file to use (ignored if --skip-sysup)
     --ipk             Specify IPK file
     --verbose         Verbose (logger level is debug, instead of info)
@@ -28,7 +29,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 ### Constants
-GLIBC = False
+GLIBC = True
+
 if GLIBC:
     SYSIMAGE="bin/targets/ramips/mt76x8-glibc/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
     PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
@@ -71,10 +73,13 @@ if __name__ == '__main__':
     skip_sysupgrade = arguments['--skip-sysup']
     appipk = arguments['--ipk']
     imagebin = arguments['--bin']
+
     if not appipk:
         appipk = PACKAGE_HELLOWORLD
     else:
         appipk = arguments['IPKFILE']
+        if arguments['BINFILE'] and not appipk:
+            appipk = arguments['BINFILE']
     if not imagebin:
         imagebin = SYSIMAGE
     else:
@@ -172,12 +177,19 @@ if __name__ == '__main__':
             elif state == "installing":
                 if "is up to date" in str_ or "Configuring" in str_:
                     time.sleep(2)
-                    state = "checking_install"
-                    start_time = time.time()
-                    command_ = "helloworld"
-                    send_command_on_telnet_stream(so, command_)
+                    if arguments['--skip-test']:
+                        state = "done"
+                        strip_ln_telnet = False
+                    else:
+                        state = "checking_install"
+                        start_time = time.time()
+                        command_ = "helloworld"
+                        send_command_on_telnet_stream(so, command_)
                 
             elif state == "checking_install":
+                if "Aborted" in str_:
+                    logger.critical("Error while running the app")
+                    state = "stop_app"
                 if time.time() - start_time > 60:
                     print("We waited for too long, there is a problem")
                     print("RIL: {}".format(ril_ok))
@@ -220,4 +232,4 @@ if __name__ == '__main__':
                     print("the app check RIL ({}), I2C ({})".format(ril_ok, i2c_read_ok))
                 exit(0)
     except Exception as e:
-        print(e.msg)
+        raise(e)
