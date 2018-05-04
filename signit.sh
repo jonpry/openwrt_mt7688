@@ -4,9 +4,10 @@ rm work/* -f -R
 mkdir -p work/contents/control
 mkdir -p work/contents/data
 
-cp $1 ./work/$1.gz
-gzip -d ./work/$1.gz
-tar xf ./work/$1 -C ./work/contents
+filename=$(basename -- "$1")
+cp $1 ./work/$filename.gz
+gzip -d ./work/$filename.gz
+tar xf ./work/$filename -C ./work/contents
 tar zxf ./work/contents/control.tar.gz -C ./work/contents/control
 tar zxf ./work/contents/data.tar.gz -C ./work/contents/data
 mkdir -p work/contents/data/etc
