@@ -18,8 +18,11 @@ cd ../../..
 echo "$hash" > foo.sums
 sha256sum ./foo.sums | cut -d' ' -f1 >> foo.sums 
 cp foo.sums ./work/contents/data/etc/helloworld.sig
+find ./work/contents/data -exec touch {} \;
+
 tar zcfv ./work/contents/data.tar.gz -C ./work/contents/data .
 #tar zcfv --atime-preserve ./work/contents/data.tar.gz -C ./work/contents/data .
+
 
 rm ./work/contents/data -R -f
 rm ./work/contents/control -R -f
