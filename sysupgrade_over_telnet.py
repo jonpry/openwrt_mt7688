@@ -40,6 +40,7 @@ else:
     
 PORT = 7000
 
+
 def send_command_on_telnet_stream(stream, command_):
     print("sending command over telnet: {}".format(command_))
     stream.write("\n{}\n".format(command_))
@@ -143,7 +144,7 @@ if __name__ == '__main__':
                     continue
                 print("copy sending IMAGE file over ssh to {}".format(scp_target))
 
-                call(["scp", "-P", "2022", imagebin, scp_target])
+                call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", imagebin, scp_target])
                 sysimage_file = imagebin.split("/")[-1]
                 command_ = "sysupgrade /tmp/{}".format(sysimage_file)
                 send_command_on_telnet_stream(so, command_)
@@ -166,7 +167,7 @@ if __name__ == '__main__':
                 strip_ln_telnet = False
             elif state == "install_app":
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
-                call(["scp", "-P", "2022", appipk, scp_target])
+                call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", appipk, scp_target])
                 package_file = appipk.split("/")[-1]
                 command_ = "opkg remove helloworld"
                 send_command_on_telnet_stream(so, command_)

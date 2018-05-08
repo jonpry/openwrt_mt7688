@@ -1,0 +1,26 @@
+all: clean helloworld
+
+.PHONY: clean
+
+clean:
+    rm -rf ./bin ./staging_dir ./build_dir
+
+.PHONY: prepare
+
+prepare:
+    ./scripts/feeds update
+    ./scripts/feeds install -a
+    cp ./SGD-def.config .config
+    cp package/feeds/stel/helloworld/openocd_makefile.txt package/feeds/packages/openocd/Makefile
+    cp -R package/feeds/stel/helloworld/files .
+
+image: prepare
+    make -j16
+
+helloworld: image
+    make package/helloworld/compile -j16 V=s
+    sh signit.sh ./bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk
+    echo "package is in ./signed.ipk"
+
+
+
