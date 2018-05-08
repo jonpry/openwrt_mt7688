@@ -175,11 +175,10 @@ if __name__ == '__main__':
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
                 call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", appipk, scp_target])
                 if SIGNED:
-                    call(["ssh", "-p", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "update.sh"])
                     strip_ln_telnet = True
-                    command_ = "launch_helloworld.sh"
+                    command_ = "update.sh"
                     send_command_on_telnet_stream(so, command_)
-                    state = "checking_install"
+                    state = "installing"
                 else:
                     package_file = appipk.split("/")[-1]
                     command_ = "opkg remove helloworld"
@@ -197,7 +196,7 @@ if __name__ == '__main__':
                     else:
                         state = "checking_install"
                         start_time = time.time()
-                        command_ = "helloworld"
+                        command_ = "launch_helloworld.sh" if SIGNED else "helloworld"
                         send_command_on_telnet_stream(so, command_)
                 
             elif state == "checking_install":

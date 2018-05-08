@@ -16,11 +16,11 @@ prepare:
 
 image: prepare
 	make -j16
+	sh signit.sh ./bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk
 
-helloworld: image
+helloworld: prepare
 	make package/helloworld/compile -j16 V=s
 	sh signit.sh ./bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk
-	echo "package is in ./signed.ipk"
 
 
 
