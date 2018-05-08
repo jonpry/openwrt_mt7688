@@ -30,10 +30,14 @@ logger = logging.getLogger(__name__)
 
 ### Constants
 GLIBC = True
+SIGNED = True
 
 if GLIBC:
     SYSIMAGE="bin/targets/ramips/mt76x8-glibc/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
-    PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
+    if SIGNED:
+        PACKAGE_HELLOWORLD="signed.ipk"
+    else:
+        PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
 else:
     SYSIMAGE="bin/targets/ramips/mt76x8/openwrt-ramips-mt76x8-wrtnode2r-squashfs-sysupgrade.bin"
     PACKAGE_HELLOWORLD="bin/packages/mipsel_24kc/stel/helloworld_1_mipsel_24kc.ipk"
@@ -144,7 +148,8 @@ if __name__ == '__main__':
                     continue
                 print("copy sending IMAGE file over ssh to {}".format(scp_target))
 
-                call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", imagebin, scp_target])
+                call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null",
+                     "-o", "StrictHostKeyChecking=no", imagebin, scp_target])
                 sysimage_file = imagebin.split("/")[-1]
                 command_ = "sysupgrade /tmp/{}".format(sysimage_file)
                 send_command_on_telnet_stream(so, command_)
@@ -168,13 +173,20 @@ if __name__ == '__main__':
             elif state == "install_app":
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
                 call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", appipk, scp_target])
-                package_file = appipk.split("/")[-1]
-                command_ = "opkg remove helloworld"
-                send_command_on_telnet_stream(so, command_)
-                command_ = "opkg install /tmp/{}".format(package_file)
-                send_command_on_telnet_stream(so,command_)
-                strip_ln_telnet = True
-                state = "installing"
+                if SIGNED:
+                    call(["ssh", "-p", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "'update.sh'"])
+                    strip_ln_telnet = True
+                    command_ = "helloworld"
+                    send_command_on_telnet_stream(so, command_)
+                    state = "checking_install"
+                else:
+                    package_file = appipk.split("/")[-1]
+                    command_ = "opkg remove helloworld"
+                    send_command_on_telnet_stream(so, command_)
+                    command_ = "opkg install /tmp/{}".format(package_file)
+                    send_command_on_telnet_stream(so, command_)
+                    strip_ln_telnet = True
+                    state = "installing"
             elif state == "installing":
                 if "is up to date" in str_ or "Configuring" in str_:
                     time.sleep(2)
