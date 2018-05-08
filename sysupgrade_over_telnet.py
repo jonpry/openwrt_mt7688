@@ -168,15 +168,16 @@ if __name__ == '__main__':
                 if time.time()-start_time > 120:
                     print("ERROR: SSH never detecting, quiting install, sysupgrade done, install app failed")
                     exit(1) 
+                time.sleep(5)
                 state = "install_app"
                 strip_ln_telnet = False
             elif state == "install_app":
                 print("copy sending APPLICATION file over ssh to {}".format(scp_target))
                 call(["scp", "-P", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", appipk, scp_target])
                 if SIGNED:
-                    call(["ssh", "-p", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "'update.sh'"])
+                    call(["ssh", "-p", "2022", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "update.sh"])
                     strip_ln_telnet = True
-                    command_ = "helloworld"
+                    command_ = "launch_helloworld.sh"
                     send_command_on_telnet_stream(so, command_)
                     state = "checking_install"
                 else:
