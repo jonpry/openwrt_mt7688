@@ -4,6 +4,7 @@ all: clean helloworld
 
 clean:
 	rm -rf ./bin ./staging_dir ./build_dir
+	make clean
 
 .PHONY: prepare
 
