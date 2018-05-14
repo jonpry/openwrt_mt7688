@@ -1,0 +1,192 @@
+diff --git a/drivers/mtd/spi-nor/spi-nor.c b/drivers/mtd/spi-nor/spi-nor.c
+index 8547f185..d19d31b5 100644
+--- a/drivers/mtd/spi-nor/spi-nor.c
++++ b/drivers/mtd/spi-nor/spi-nor.c
+@@ -197,6 +197,22 @@ static int write_scur(struct spi_nor *nor, u8 val)
+ 	return ret;
+ }
+ 
++
++#define SPINOR_OP_WRCR 0x31
++static int write_cr(struct spi_nor *nor, u8 val)
++{
++	int ret;
++	
++	printk(KERN_WARNING "debug:input val to write_cr is %d\n", val);
++	ret = nor->write_reg(nor, SPINOR_OP_WRCR, &val, 1);
++	if(ret < 0) {
++		dev_err(nor->dev, "error %d writing CR\n", ret);
++		printk(KERN_WARNING "debug:error from nor->write_reg\n");
++	}
++
++	return ret;
++}
++
+ /*
+  * Dummy Cycle calculation for different type of read.
+  * It can be used to support more commands with
+@@ -1259,7 +1275,8 @@ static const struct flash_info spi_nor_ids[] = {
+ 	},
+ 	{ "w25q80", INFO(0xef5014, 0, 64 * 1024,  16, SECT_4K) },
+ 	{ "w25q80bl", INFO(0xef4014, 0, 64 * 1024,  16, SECT_4K) },
+-	{ "w25q128", INFO(0xef4018, 0, 64 * 1024, 256, SECT_4K) },
++	{ "w25q128", INFO(0xef4018, 0, 64 * 1024, 256, SECT_4K | SPI_NOR_HAS_OTP)
++		OTP_INFO(64, 1, 0, 0) },
+ 	{ "w25q256", INFO(0xef4019, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_4B_READ_OP) },
+ 
+ 	/* Catalyst / On Semiconductor -- non-JEDEC */
+@@ -1825,20 +1842,30 @@ static ssize_t spi_nor_read_security_reg(struct spi_nor *nor, loff_t from,
+ 	if (ret)
+ 		return ret;
+ 
+-nor->write_reg(nor,nor->otp_enso,0,0);
+-
+-
+-	cfg.cmd = nor->read_opcode;
+-	cfg.addr = from;
+-	cfg.addr_width = nor->addr_width;
+-	cfg.mode = SPI_NOR_NORMAL;
+-	cfg.dummy_cycles = nor->read_dummy;
++	if(nor->otp_enso)
++		nor->write_reg(nor,nor->otp_enso,0,0);
++
++
++	if(nor->otp_enso){
++		cfg.cmd = nor->read_opcode;
++		cfg.addr = from;
++		cfg.addr_width = nor->addr_width;
++		cfg.mode = SPI_NOR_NORMAL;
++		cfg.dummy_cycles = nor->read_dummy;
++	}else{
++		cfg.cmd = nor->otp_read_opcode;
++		cfg.addr = from | (1<<12);
++		cfg.addr_width = nor->addr_width;
++		cfg.mode = SPI_NOR_NORMAL;
++		cfg.dummy_cycles = nor->otp_read_dummy;
++	}
+ 
+ //        printk("SNRSR2: %p %d %lld\n", buf, len, from);
+ 
+ 	ret = nor->read_xfer(nor, &cfg, buf, len);
+ 
+-nor->write_reg(nor,nor->otp_exso,0,0);
++	if(nor->otp_enso)
++		nor->write_reg(nor,nor->otp_exso,0,0);
+ 
+ 	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_READ);
+ 	return ret;
+@@ -1891,13 +1918,20 @@ static ssize_t spi_nor_write_security_reg(struct spi_nor *nor, loff_t to,
+ 	if (ret)
+ 		return ret;
+ 
+-nor->write_reg(nor,nor->otp_enso,0,0);
+-
+-	cfg.cmd = nor->program_opcode;
+-	cfg.addr = to;
+-	cfg.addr_width = nor->addr_width;
+-	cfg.mode = SPI_NOR_NORMAL;
+-
++	if(nor->otp_enso)
++		nor->write_reg(nor,nor->otp_enso,0,0);
++
++        if(nor->otp_enso){
++  		cfg.cmd = nor->program_opcode;
++		cfg.addr = to;
++		cfg.addr_width = nor->addr_width;
++		cfg.mode = SPI_NOR_NORMAL;
++	}else{
++  		cfg.cmd = nor->otp_program_opcode;
++		cfg.addr = to + (1<<12);
++		cfg.addr_width = nor->addr_width;
++		cfg.mode = SPI_NOR_NORMAL;
++	}
+ //printk("SNWSR: %p, %d, %lld\n", buf, len, to);
+ 
+ 
+@@ -1906,7 +1940,8 @@ nor->write_reg(nor,nor->otp_enso,0,0);
+ 	write_disable(nor);
+         spi_nor_wait_till_ready(nor);
+ 
+-nor->write_reg(nor,nor->otp_exso,0,0);
++	if(nor->otp_enso)
++		nor->write_reg(nor,nor->otp_exso,0,0);
+ 
+ 	if (ret < 0)
+ 		goto unlock;
+@@ -1923,7 +1958,7 @@ unlock:
+ 	return ret;
+ }
+ 
+-static int macronix_write_security_reg(struct mtd_info *mtd, loff_t from,
++static int macronix_otp_lock(struct mtd_info *mtd, loff_t from,
+ 	size_t len)
+ {
+ 	printk(KERN_WARNING "debug: inside write sec reg\n");
+@@ -1958,6 +1993,41 @@ unlock:
+ 	return ret;
+ }
+ 
++static int winbond_otp_lock(struct mtd_info *mtd, loff_t from,
++	size_t len)
++{
++	printk(KERN_WARNING "debug: inside write sec reg\n");
++	
++	u8 val = 1;
++	int ret = 0;
++	struct spi_nor *nor = mtd_to_spi_nor(mtd);
++
++	ret = spi_nor_lock_and_prep(nor, SPI_NOR_OPS_WRITE);
++	val = read_cr(nor);
++
++	u8 write_val = val | BIT(WINBOND_SR2_LB1_BIT);
++
++	if (ret)
++		return ret;
++	ret = write_enable(nor);
++	spi_nor_wait_till_ready(nor);
++	if (!ret){
++		ret = write_cr(nor, write_val);
++	}
++	spi_nor_wait_till_ready(nor);
++
++write_disable:
++	write_disable(nor);
++	spi_nor_wait_till_ready(nor);
++unlock:
++	spi_nor_unlock_and_unprep(nor, SPI_NOR_OPS_WRITE);
++	//checking if write was successful
++	val = read_cr(nor);
++	printk(KERN_WARNING "debug:new val of macronix sec reg is %d\n", val);
++	return ret;
++}
++
++
+ static int spi_nor_write_user_otp(struct mtd_info *mtd, loff_t to, size_t len,
+ 	size_t *retlen, u_char *buf)
+ {
+@@ -2004,18 +2074,24 @@ static int spi_nor_set_otp_info(struct spi_nor *nor,
+ 
+ 	switch (JEDEC_MFR(info)) {
+ 	case SNOR_MFR_WINBOND:
++                nor->otp_enso = 0;
++                nor->otp_exso = 0;
+ 		nor->otp_read_opcode = 0x48;
+ 		nor->otp_program_opcode = 0x42;
+ 		nor->otp_erase_opcode = 0x44;
+ 		nor->otp_read_dummy = 8;
+ 
+ 		mtd->_get_user_prot_info = winbond_get_user_otp_info;
++		mtd->_lock_user_prot_reg = winbond_otp_lock;
+ 		break;
+         case SNOR_MFR_MACRONIX:
+                 nor->otp_enso = 0xB1;
+                 nor->otp_exso = 0xC1;
++		nor->otp_read_opcode = 0;
++		nor->otp_program_opcode = 0;
++		nor->otp_erase_opcode = 0;
+                 mtd->_get_user_prot_info = macronix_get_user_otp_info;
+-		mtd->_lock_user_prot_reg = macronix_write_security_reg;
++		mtd->_lock_user_prot_reg = macronix_otp_lock;
+                 break;
+ 	default:
+ 		return -EINVAL;
