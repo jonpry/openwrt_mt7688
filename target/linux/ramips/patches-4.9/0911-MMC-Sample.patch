@@ -1,0 +1,370 @@
+diff --git a/drivers/mmc/host/mtk-sd.c b/drivers/mmc/host/mtk-sd.c
+index 01ad733d..3d1eced9 100644
+--- a/drivers/mmc/host/mtk-sd.c
++++ b/drivers/mmc/host/mtk-sd.c
+@@ -76,8 +76,12 @@
+ #define MSDC_PATCH_BIT   0xb0
+ #define MSDC_PATCH_BIT1  0xb4
+ #define MSDC_PATCH_BIT2  0xb8
++#define MSDC_PAD_CTL0    0xe0
++#define MSDC_PAD_CTL1    0xe4
++#define MSDC_PAD_CTL2    0xe8
+ #define MSDC_PAD_TUNE    0xec
+-#define MSDC_PAD_TUNE0   0xf0
++#define MSDC_DAT_RDDLY0  0xf0
++#define MSDC_DAT_RDDLY1  0xf4
+ #define PAD_DS_TUNE      0x188
+ #define PAD_CMD_TUNE     0x18c
+ #define EMMC50_CFG0      0x208
+@@ -240,6 +244,39 @@
+ #define MSDC_PAD_TUNE_RD_SEL	  (0x1 << 13)   /* RW */
+ #define MSDC_PAD_TUNE_CMD_SEL	  (0x1 << 21)   /* RW */
+ 
++/* MSDC_PAD_CTL0 mask */
++#define MSDC_PAD_CTL0_CLKDRVN   (0x7  << 0)     /* RW */
++#define MSDC_PAD_CTL0_CLKDRVP   (0x7  << 4)     /* RW */
++#define MSDC_PAD_CTL0_CLKSR     (0x1  << 8)     /* RW */
++#define MSDC_PAD_CTL0_CLKPD     (0x1  << 16)    /* RW */
++#define MSDC_PAD_CTL0_CLKPU     (0x1  << 17)    /* RW */
++#define MSDC_PAD_CTL0_CLKSMT    (0x1  << 18)    /* RW */
++#define MSDC_PAD_CTL0_CLKIES    (0x1  << 19)    /* RW */
++#define MSDC_PAD_CTL0_CLKTDSEL  (0xf  << 20)    /* RW */
++#define MSDC_PAD_CTL0_CLKRDSEL  (0xffUL<< 24)   /* RW */
++
++/* MSDC_PAD_CTL1 mask */
++#define MSDC_PAD_CTL1_CMDDRVN   (0x7  << 0)     /* RW */
++#define MSDC_PAD_CTL1_CMDDRVP   (0x7  << 4)     /* RW */
++#define MSDC_PAD_CTL1_CMDSR     (0x1  << 8)     /* RW */
++#define MSDC_PAD_CTL1_CMDPD     (0x1  << 16)    /* RW */
++#define MSDC_PAD_CTL1_CMDPU     (0x1  << 17)    /* RW */
++#define MSDC_PAD_CTL1_CMDSMT    (0x1  << 18)    /* RW */
++#define MSDC_PAD_CTL1_CMDIES    (0x1  << 19)    /* RW */
++#define MSDC_PAD_CTL1_CMDTDSEL  (0xf  << 20)    /* RW */
++#define MSDC_PAD_CTL1_CMDRDSEL  (0xffUL<< 24)   /* RW */
++
++/* MSDC_PAD_CTL2 mask */
++#define MSDC_PAD_CTL2_DATDRVN   (0x7  << 0)     /* RW */
++#define MSDC_PAD_CTL2_DATDRVP   (0x7  << 4)     /* RW */
++#define MSDC_PAD_CTL2_DATSR     (0x1  << 8)     /* RW */
++#define MSDC_PAD_CTL2_DATPD     (0x1  << 16)    /* RW */
++#define MSDC_PAD_CTL2_DATPU     (0x1  << 17)    /* RW */
++#define MSDC_PAD_CTL2_DATIES    (0x1  << 19)    /* RW */
++#define MSDC_PAD_CTL2_DATSMT    (0x1  << 18)    /* RW */
++#define MSDC_PAD_CTL2_DATTDSEL  (0xf  << 20)    /* RW */
++#define MSDC_PAD_CTL2_DATRDSEL  (0xffUL<< 24)   /* RW */
++
+ #define PAD_DS_TUNE_DLY1	  (0x1f << 2)   /* RW */
+ #define PAD_DS_TUNE_DLY2	  (0x1f << 7)   /* RW */
+ #define PAD_DS_TUNE_DLY3	  (0x1f << 12)  /* RW */
+@@ -271,6 +308,71 @@
+ #define DAT_TIMEOUT         (HZ    * 5)	/* 1000ms x5 */
+ 
+ #define PAD_DELAY_MAX	32 /* PAD delay cells */
++
++#define MSDC_SMPL_FALLING   (1)
++
++#if 0
++#define sdr_write32(val, reg) \
++do { \
++   if(reg == host->base + MSDC_IOCON){ \
++      printk_deferred("W_ICON: 0x%X\n", val); \
++   } \
++   if(reg == host->base + MSDC_PAD_CTL0){ \
++      printk_deferred("W_PADCTL0: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_PAD_CTL1){ \
++      printk_deferred("W_PADCTL1: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_PAD_CTL2){ \
++      printk_deferred("W_PADCTL2: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_PATCH_BIT){ \
++      printk_deferred("W_PATCHBIT: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_PATCH_BIT1){ \
++      printk_deferred("W_PATCHBIT1: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_PAD_TUNE){ \
++      printk_deferred("W_PADTUNE: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_DAT_RDDLY0){ \
++      printk_deferred("W_RDDLY0: 0x%8.8X\n", val); \
++   } \
++   if(reg == host->base + MSDC_DAT_RDDLY1){ \
++      printk_deferred("W_RDDLY1: 0x%8.8X\n", val); \
++   } \
++   writel(val, reg); \
++} while(0)
++#else
++#define sdr_write32(val, reg) \
++do { \
++   writel(val, reg); \
++} while(0)
++#endif
++
++
++#define sdr_set_field(reg, field, val) \
++do { \
++	unsigned int tv = readl(reg); \
++	tv &= ~field; \
++	tv |= ((val) << (ffs((unsigned int)field) - 1)); \
++	sdr_write32(tv, reg); \
++} while(0)
++
++#define sdr_set_bits(reg, bs) \
++do { \
++	u32 val = readl(reg); \
++	val |= bs; \
++	sdr_write32(val, reg); \
++} while(0)
++
++#define sdr_clr_bits(reg, bs) \
++do { \
++	u32 val = readl(reg); \
++	val &= ~bs; \
++	sdr_write32(val, reg); \
++} while(0)
++
+ /*--------------------------------------------------------------------------*/
+ /* Descriptor Structure                                                     */
+ /*--------------------------------------------------------------------------*/
+@@ -419,7 +521,7 @@ static const struct mtk_mmc_compatible mt8173_compat = {
+ static const struct mtk_mmc_compatible mt2701_compat = {
+ 	.clk_div_bits = 12,
+ 	.hs400_tune = false,
+-	.pad_tune_reg = MSDC_PAD_TUNE0,
++	.pad_tune_reg = MSDC_DAT_RDDLY0,
+ 	.async_fifo = true,
+ 	.data_tune = true,
+ 	.busy_check = false,
+@@ -430,7 +532,7 @@ static const struct mtk_mmc_compatible mt2701_compat = {
+ static const struct mtk_mmc_compatible mt2712_compat = {
+ 	.clk_div_bits = 12,
+ 	.hs400_tune = false,
+-	.pad_tune_reg = MSDC_PAD_TUNE0,
++	.pad_tune_reg = MSDC_DAT_RDDLY0,
+ 	.async_fifo = true,
+ 	.data_tune = true,
+ 	.busy_check = true,
+@@ -460,31 +562,6 @@ static const struct of_device_id msdc_of_ids[] = {
+ };
+ MODULE_DEVICE_TABLE(of, msdc_of_ids);
+ 
+-static void sdr_set_bits(void __iomem *reg, u32 bs)
+-{
+-	u32 val = readl(reg);
+-
+-	val |= bs;
+-	writel(val, reg);
+-}
+-
+-static void sdr_clr_bits(void __iomem *reg, u32 bs)
+-{
+-	u32 val = readl(reg);
+-
+-	val &= ~bs;
+-	writel(val, reg);
+-}
+-
+-static void sdr_set_field(void __iomem *reg, u32 field, u32 val)
+-{
+-	unsigned int tv = readl(reg);
+-
+-	tv &= ~field;
+-	tv |= ((val) << (ffs((unsigned int)field) - 1));
+-	writel(tv, reg);
+-}
+-
+ static void sdr_get_field(void __iomem *reg, u32 field, u32 *val)
+ {
+ 	unsigned int tv = readl(reg);
+@@ -756,12 +833,12 @@ static void msdc_set_mclk(struct msdc_host *host, unsigned char timing, u32 hz)
+ 	 * tune result of hs200/200Mhz is not suitable for 50Mhz
+ 	 */
+ 	if (host->sclk <= 52000000) {
+-		writel(host->def_tune_para.iocon, host->base + MSDC_IOCON);
+-		writel(host->def_tune_para.pad_tune, host->base + tune_reg);
++		sdr_write32(host->def_tune_para.iocon, host->base + MSDC_IOCON);
++		sdr_write32(host->def_tune_para.pad_tune, host->base + tune_reg);
+ 	} else {
+-		writel(host->saved_tune_para.iocon, host->base + MSDC_IOCON);
+-		writel(host->saved_tune_para.pad_tune, host->base + tune_reg);
+-		writel(host->saved_tune_para.pad_cmd_tune,
++		sdr_write32(host->saved_tune_para.iocon, host->base + MSDC_IOCON);
++		sdr_write32(host->saved_tune_para.pad_tune, host->base + tune_reg);
++		sdr_write32(host->saved_tune_para.pad_cmd_tune,
+ 		       host->base + PAD_CMD_TUNE);
+ 	}
+ 
+@@ -1050,6 +1127,10 @@ static void msdc_start_command(struct msdc_host *host,
+ 
+ 	cmd->error = 0;
+ 	rawcmd = msdc_cmd_prepare_raw_cmd(host, mrq, cmd);
++
++
++    //printk_deferred("Exec CMD: %d\n", cmd->opcode & 0x3f);
++
+ 	mod_delayed_work(system_wq, &host->req_timeout, DAT_TIMEOUT);
+ 
+ 	sdr_set_bits(host->base + MSDC_INTEN, cmd_ints_mask);
+@@ -1338,9 +1419,10 @@ static void msdc_init_hw(struct msdc_host *host)
+ 	val = readl(host->base + MSDC_INT);
+ 	writel(val, host->base + MSDC_INT);
+ 
+-	writel(0, host->base + tune_reg);
+-	writel(0, host->base + MSDC_IOCON);
+-	sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_DDLSEL, 0);
++	sdr_write32(0, host->base + tune_reg);
++	sdr_write32(0, host->base + MSDC_IOCON);
++
++/*	sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_DDLSEL, 0);
+ 	writel(0x403c0046, host->base + MSDC_PATCH_BIT);
+ 	sdr_set_field(host->base + MSDC_PATCH_BIT, MSDC_CKGEN_MSDC_DLY_SEL, 1);
+ 	writel(0xffff4089, host->base + MSDC_PATCH_BIT1);
+@@ -1370,7 +1452,6 @@ static void msdc_init_hw(struct msdc_host *host)
+ 			sdr_set_field(host->base + MSDC_PATCH_BIT2,
+ 				      MSDC_PB2_CRCSTSENSEL, 2);
+ 		}
+-		/* use async fifo, then no need tune internal delay */
+ 		sdr_clr_bits(host->base + MSDC_PATCH_BIT2,
+ 			     MSDC_PATCH_BIT2_CFGRESP);
+ 		sdr_set_bits(host->base + MSDC_PATCH_BIT2,
+@@ -1381,10 +1462,28 @@ static void msdc_init_hw(struct msdc_host *host)
+ 		sdr_set_bits(host->base + tune_reg,
+ 			     MSDC_PAD_TUNE_RD_SEL | MSDC_PAD_TUNE_CMD_SEL);
+ 	} else {
+-		/* choose clock tune */
++		// choose clock tune 
+ 		sdr_set_bits(host->base + tune_reg, MSDC_PAD_TUNE_RXDLYSEL);
+ 	}
+ 
++*/
++
++     sdr_write32(0x00090000, host->base + MSDC_PAD_CTL0);
++   sdr_write32(0x000A0000, host->base + MSDC_PAD_CTL1);
++   sdr_write32(0x000A0000, host->base + MSDC_PAD_CTL2);
++   sdr_write32(0x84101010, host->base + MSDC_PAD_TUNE);		// for MT7620 E2 and afterward
++   // sdr_write32(MSDC_DAT_RDDLY0, 0x00000000);
++    sdr_write32(0x10101010, host->base + MSDC_DAT_RDDLY0);		// for MT7620 E2 and afterward
++    sdr_write32(0, host->base + MSDC_DAT_RDDLY1);
++	sdr_write32(0, host->base + MSDC_IOCON);
++
++    sdr_set_field(host->base + MSDC_PAD_CTL0, MSDC_PAD_CTL0_CLKDRVN, 4);
++    sdr_set_field(host->base + MSDC_PAD_CTL0, MSDC_PAD_CTL0_CLKDRVP, 4);
++    sdr_set_field(host->base + MSDC_PAD_CTL1, MSDC_PAD_CTL1_CMDDRVN, 4);
++    sdr_set_field(host->base + MSDC_PAD_CTL1, MSDC_PAD_CTL1_CMDDRVP, 4);
++    sdr_set_field(host->base + MSDC_PAD_CTL2, MSDC_PAD_CTL2_DATDRVN, 4);
++    sdr_set_field(host->base + MSDC_PAD_CTL2, MSDC_PAD_CTL2_DATDRVP, 4);
++
+ 	/* Configure to enable SDIO mode.
+ 	 * it's must otherwise sdio cmd5 failed
+ 	 */
+@@ -1396,9 +1495,11 @@ static void msdc_init_hw(struct msdc_host *host)
+ 	/* Configure to default data timeout */
+ 	sdr_set_field(host->base + SDC_CFG, SDC_CFG_DTOC, 3);
+ 
+-	host->def_tune_para.iocon = readl(host->base + MSDC_IOCON);
++    sdr_set_field(host->base + MSDC_PATCH_BIT, 1 << 30, 1);
++
++	host->def_tune_para.iocon = 6;
+ 	host->def_tune_para.pad_tune = readl(host->base + tune_reg);
+-	host->saved_tune_para.iocon = readl(host->base + MSDC_IOCON);
++	host->saved_tune_para.iocon = 6;
+ 	host->saved_tune_para.pad_tune = readl(host->base + tune_reg);
+ 	dev_dbg(host->dev, "init hardware done!");
+ }
+@@ -1475,8 +1576,31 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
+ 		break;
+ 	}
+ 
+-	if (host->mclk != ios->clock || host->timing != ios->timing)
++	if (host->mclk != ios->clock || host->timing != ios->timing){
++        printk("Set ios\n");
++/*
++            sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_RSPL, MSDC_SMPL_FALLING);
++            sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_DSPL, MSDC_SMPL_FALLING);
++            sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_W_DSPL, MSDC_SMPL_FALLING);
++*/
++        if(ios->clock > 25000000) {	    	
++            printk("SD data latch edge<%d>\n", MSDC_SMPL_FALLING);            
++            sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_RSPL, MSDC_SMPL_FALLING);
++            sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_DSPL, MSDC_SMPL_FALLING);
++            sdr_set_field(host->base + MSDC_IOCON, MSDC_IOCON_W_DSPL, MSDC_SMPL_FALLING);
++
++        } else {
++            sdr_write32(0x00000000, host->base + MSDC_IOCON);
++            // sdr_write32(MSDC_DAT_RDDLY0, 0x00000000);
++            sdr_write32(0x10101010, host->base + MSDC_DAT_RDDLY0);		// for MT7620 E2 and afterward
++            sdr_write32(0x00000000, host->base + MSDC_DAT_RDDLY1);            
++            // sdr_write32(MSDC_PAD_TUNE,   0x00000000);
++            sdr_write32(0x84101010, host->base + MSDC_PAD_TUNE);		// for MT7620 E2 and afterward
++        }
++
+ 		msdc_set_mclk(host, ios->timing, ios->clock);
++
++    }
+ }
+ 
+ static u32 test_delay_bit(u32 delay, u32 bit)
+@@ -1690,6 +1814,8 @@ static int msdc_tune_data(struct mmc_host *mmc, u32 opcode)
+ 	u32 tune_reg = host->dev_comp->pad_tune_reg;
+ 	int i, ret;
+ 
++    printk("Tune data\n");
++
+ 	sdr_set_field(host->base + MSDC_PATCH_BIT, MSDC_INT_DAT_LATCH_CK_SEL,
+ 		      host->latch_ck);
+ 	sdr_clr_bits(host->base + MSDC_IOCON, MSDC_IOCON_DSPL);
+@@ -1736,7 +1862,7 @@ skip_fall:
+ 		final_delay = final_fall_delay.final_phase;
+ 	}
+ 
+-	dev_dbg(host->dev, "Final data pad delay: %x\n", final_delay);
++	printk("Final data pad delay: %x\n", final_delay);
+ 	return final_delay == 0xff ? -EIO : 0;
+ }
+ 
+@@ -1746,6 +1872,8 @@ static int msdc_execute_tuning(struct mmc_host *mmc, u32 opcode)
+ 	int ret;
+ 	u32 tune_reg = host->dev_comp->pad_tune_reg;
+ 
++    printk("Exec tuning\n");
++
+ 	if (host->hs400_mode &&
+ 	    host->dev_comp->hs400_tune)
+ 		ret = hs400_tune_response(mmc, opcode);
+@@ -1826,6 +1954,8 @@ static void msdc_of_property_parse(struct platform_device *pdev,
+ 		host->hs400_cmd_resp_sel_rising = false;
+ }
+ 
++#define RALINK_SYSCTL_BASE		0xb0000000
++
+ static int msdc_drv_probe(struct platform_device *pdev)
+ {
+ 	struct mmc_host *mmc;
+@@ -1842,6 +1972,16 @@ static int msdc_drv_probe(struct platform_device *pdev)
+ 	of_id = of_match_node(msdc_of_ids, pdev->dev.of_node);
+ 	if (!of_id)
+ 		return -EINVAL;
++
++    u32 reg;
++
++	reg = readl((void __iomem *)(RALINK_SYSCTL_BASE + 0x3c));
++	reg |= 0x1e << 16;
++	writel(reg, (void __iomem *)(RALINK_SYSCTL_BASE + 0x3c));
++	reg = readl((void __iomem *)(RALINK_SYSCTL_BASE +
++						  0x60)) & ~(0x3 << 10);
++    printk("Weird sysctl B\n");
++
+ 	/* Allocate MMC host for this device */
+ 	mmc = mmc_alloc_host(sizeof(struct msdc_host), &pdev->dev);
+ 	if (!mmc)
+@@ -1937,7 +2077,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
+ 		mmc->f_min = DIV_ROUND_UP(host->src_clk_freq, 4 * 4095);
+ 
+         mmc->f_max = host->src_clk_freq;
+-	mmc->caps |= MMC_CAP_ERASE | MMC_CAP_CMD23 | MMC_CAP_4_BIT_DATA | MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
++	mmc->caps |= MMC_CAP_ERASE | MMC_CAP_CMD23 | MMC_CAP_4_BIT_DATA | MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED | MMC_CAP_UHS_SDR50;
+ 	/* MMC core transfer sizes tunable parameters */
+ 	mmc->max_segs = MAX_BD_NUM;
+ 	mmc->max_seg_size = BDMA_DESC_BUFLEN;
