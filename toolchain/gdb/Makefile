@@ -45,7 +45,7 @@ HOST_CONFIGURE_ARGS = \
 	--without-included-gettext \
 	--enable-threads \
 	--with-expat \
-	--without-python \
+        --with-gdb=/usr/bin/python \
 	--disable-binutils \
 	--disable-ld \
 	--disable-gas \

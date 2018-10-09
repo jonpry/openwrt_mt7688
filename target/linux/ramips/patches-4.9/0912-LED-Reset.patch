@@ -1,0 +1,63 @@
+diff --git a/drivers/leds/leds-ws2812b.c b/drivers/leds/leds-ws2812b.c
+index 9b39ed83..2a2b3550 100644
+--- a/drivers/leds/leds-ws2812b.c
++++ b/drivers/leds/leds-ws2812b.c
+@@ -142,37 +142,35 @@ int ws2812b_led_sendData(u32 dat, u32 bits, bool nop)
+ static inline int ws2812b_led_update(void)
+ {
+ 	unsigned long flags;
+-	int i,ret;
++	int i,ret,j;
+    	u32 data=0;
+ 	u32 bits=0;
+ 	/* this spin lock prevent task scheduling thus prevent buffer underflow*/
+ 	spin_lock_irqsave(&ws2812b__lock,flags);
+-
+-	ret=ws2812b_led_sendRst();
+-	if (ret<0)
+-	{
+-		spin_unlock_irqrestore(&ws2812b__lock,flags);
+-		return ret;
+-	}
+-	ret=ws2812b_led_sendData(0,8,true);
+-	for (i=0;i<(ws2812b_device->numberOfLEDs);i++)
+-	{
+-		data <<=8;
+-		data |= ws2812b_device->led[i].brightness;
+-		bits +=8;
+-        }
++        for(j=0; j<1; j++){ 
++   	        ret=ws2812b_led_sendRst();
++	        if (ret<0) {
++		        spin_unlock_irqrestore(&ws2812b__lock,flags);
++		        return ret;
++	        }
++	        ret=ws2812b_led_sendData(0,8,true);
++	        for (i=0;i<(ws2812b_device->numberOfLEDs);i++) {
++		        data <<=8;
++		        data |= ws2812b_device->led[i].brightness;
++		        bits +=8;
++                }
+ 	
+-	ret=ws2812b_led_sendData(data,bits,false);
+-	if (ret<0)
+-	{
+-		spin_unlock_irqrestore(&ws2812b__lock,flags);
+-		return ret;
+-	}
+-        //ws2812b_go_idle();
+-
++	        ret=ws2812b_led_sendData(data,bits,false);
++	        if (ret<0) {
++		        spin_unlock_irqrestore(&ws2812b__lock,flags);
++		        return ret;
++	        }
++	        ret=ws2812b_led_sendRst();
++        }
+ 	spin_unlock_irqrestore(&ws2812b__lock,flags);
+ 	return 0;
+ }
++
+ static int ws2812b_led_init_hw(struct platform_device * pdev)
+ {
+ 	int ret;

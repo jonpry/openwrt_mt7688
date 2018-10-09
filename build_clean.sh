@@ -6,4 +6,7 @@ package/feeds/packages/openocd/Makefile
 cp ./SGD-def.config .config
 cat .config | grep cares
 cp -R package/feeds/stel/helloworld/files .
+cd feeds/stel/netresolve/src
+./autogen.sh
+cd ../../../..
 make -j16

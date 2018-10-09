@@ -71,7 +71,7 @@ if( opendir SD, "$Bin/../staging_dir" )
 		print $fh "set history save on\n";
 
 		my $file = -f "$sysroot/$ARGV[1]" ? "$sysroot/$ARGV[1]" : $ARGV[1];
-		system($gdb, '-x', $fp, $file);
+		system($gdb, '-data-directory=/usr/share/gdb', '-x', $fp, $file);
 
 		close($fh);
 		unlink($fp);
