@@ -16,3 +16,4 @@ src-git stel git@github.com:/jonpry/feed;master
 #src-git management https://github.com/openwrt-management/packages.git
 #src-git oldpackages http://git.openwrt.org/packages.git
 #src-link custom /usr/src/openwrt/custom-feed
+src-git modemmanager https://bitbucket.org/aleksander0m/modemmanager-openwrt.git
